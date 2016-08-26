@@ -14,7 +14,7 @@ public class Stabilizer extends Thread{
 	private double ref_angle = 0;
 	
 	 /**
-	 * Constructor por defecto 
+	 * Constructor por defecto. 
 	 */
 	Stabilizer() {}
 	
