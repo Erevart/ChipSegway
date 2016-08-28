@@ -28,7 +28,8 @@ public final class Stabilizer {
 	
 	
 	// Sintonización variables del controlador 
-	private final float dt = 22f; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+	private final int falling_down = 60; // Umbral de inclinación a partir de cual no se ejecuta el controlador. 
+	private final float dt = 10f; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
 	private float kp = 0.5f;		// Ganancia proporcional
 	private float ki = 11f;			// Ganancia integral
 	private float kd = 0.005f;		// Ganancia derivativa
@@ -56,8 +57,8 @@ public final class Stabilizer {
    // private final double Kphidot = 0.028141; // Motor angle velocity weight
 	
 	// Variables del sistema
-	private double Psi = 0;
-	private double PsiDot = 0;
+	public double Psi = 0;
+	public double PsiDot = 0;
 	private double Phi = 0;
 	private double PhiDot = 0;
 	private double steering = 0;
@@ -76,6 +77,8 @@ public final class Stabilizer {
 	private long previous_time = 0;
 	private TextLCD lcd;
 	private EV3 chip;
+	public int delay = 0;
+	
 	
 	 /**
 	 * Constructor por defecto. 
@@ -123,7 +126,7 @@ public final class Stabilizer {
 		
         // Actualización variables del sistema
 		PsiDot = gyro.getRateAngle();
-        Psi = gyro.getAngle(dt);
+        Psi = gyro.getAngle();
         
         // ctrl.tiltAngle() is used to drive the robot forwards and backwards
         Phi = motors.getAngle();// - ctrl.tiltAngle();
@@ -164,7 +167,7 @@ public final class Stabilizer {
 			
 			// Código a ejecutar de forma concurrente
 			// Determinar condicion para salir del bucle cuando el robot se cae
-			while(gyro.getRateAngle() < 60){
+			do{
 				
 				stabilizerTime = System.currentTimeMillis();
 				//ctrl.setUpright(true);
@@ -173,8 +176,10 @@ public final class Stabilizer {
 				// Actualización variables del sistema.
 				updateVariableState();
 				
+		
 				// Ponderación de las variables de estado.
 				updateWeighingLQR();
+
 				
 				// Controlador
 				
@@ -185,24 +190,24 @@ public final class Stabilizer {
 				power_motors += pendulumcontroller.doPID(Psi+PsiDot);
 				            
 	            //motors.setPower(pw + ctrl.leftMotorOffset(), pw + ctrl.rightMotorOffset());
-	            motors.setPower(power_motors, power_motors);
-	            
+	   //         motors.setPower(power_motors, power_motors);
+
+				if (System.currentTimeMillis()-stabilizerTime < dt)
+					delay = (int) (dt - (System.currentTimeMillis()-stabilizerTime) );
+				else
+					delay = (int) dt;	
+					            
 	            // Delay used to stop Gyro being read to quickly. May need to be increase or
 	            // decreased depending on leJOS version.
-	            try {
-	            	Thread.sleep((long) (dt - (stabilizerTime-System.currentTimeMillis())) );
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
+				try {Thread.sleep(delay);} catch (Exception e) {}
+				
+			}while(Math.abs(Psi) >= falling_down);
+			motors.stop();
 		}
 	}
 	
 	/**
-	 * 
-	 * @function startStabilizer
-	 * @brief 	Invoca e inicia el Thread Stabilizer para estabilizar el robot o
+     * Invoca e inicia el Thread Stabilizer para estabilizar el robot o
 	 * 			o lograr su desplazamiento sin perder el equilibrio.
 	 * @param - none
 	 * @return 	none

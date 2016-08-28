@@ -1,5 +1,6 @@
 package segway;
 
+import lejos.hardware.Button;
 import lejos.hardware.motor.EV3LargeRegulatedMotor;
 import lejos.hardware.port.MotorPort;
 import lejos.hardware.port.Port;
@@ -36,11 +37,13 @@ class EV3Motor
     */
    public EV3Motor(Port portleftMotor,Port portrightMotor)
    {
+	   Button.LEDPattern(5);
       leftMotor = new EV3LargeRegulatedMotor(portleftMotor);
       leftMotor.resetTachoCount();
 
       rightMotor = new EV3LargeRegulatedMotor(portrightMotor);
       rightMotor.resetTachoCount();
+      Button.LEDPattern(0);
    }
 
    /**

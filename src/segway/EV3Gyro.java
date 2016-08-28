@@ -1,5 +1,7 @@
 package segway;
 
+import lejos.hardware.Audio;
+import lejos.hardware.Button;
 import lejos.hardware.ev3.EV3;
 import lejos.hardware.lcd.TextLCD;
 import lejos.hardware.port.Port;
@@ -16,13 +18,15 @@ import segway.FourthOrderFilter;
  */
 public class EV3Gyro {
 	
-	private final int sample_calibration = 2000;
-	private final float max_diff_calibration = 5.0f;
+	private final int sample_calibration = 500;
+	private final float max_diff_calibration = 10.0f;
 	
-	// Variables del sistema
-	private float angle = 0f;
-	private float angle_rate = 0f;
-	private float angle_rate_offset = 0f;
+	// Variables de los sensores
+	private double angle = 0f;
+	private double angle_rate = 0f;
+	private double angle_rate_offset = 0f;
+	private long lastAngleTime = 0;
+	
 
 	
 	// Definición de sensores y hardware
@@ -42,6 +46,7 @@ public class EV3Gyro {
 	public EV3Gyro(EV3 device, Port PortGyro) {
 		
 		/* Inicialización de atributos */
+		Button.LEDPattern(4);
 		chip = device;
 		gyro = new EV3GyroSensor(PortGyro);
 		lcd = device.getTextLCD();
@@ -52,6 +57,7 @@ public class EV3Gyro {
 		/* Método de inicialización */
 		// Se calcula el valor de offset para la calibración del giroscopio.
 		calibrateGyro();
+		Button.LEDPattern(0);
 	
 	}
 	
@@ -63,13 +69,16 @@ public class EV3Gyro {
 	public void calibrateGyro(){
 		
 		int n;
+		double new_offset = 0;
 		float raw_gyro[] = new float[1];
 	
 		// Se inicializa el giroscopio. Se calcula su valor de offset.
 		do{
 		
 		n = sample_calibration;
+		new_offset = angle_rate_offset;
 		angle_rate_offset = 0;
+		
 		
 		while (n-- != 0){
 			gyro.getRateMode().fetchSample(raw_gyro, 0);
@@ -84,37 +93,50 @@ public class EV3Gyro {
 		
 		angle_rate_offset /= n;
 		
-		if (Math.abs(angle_rate_offset) >= max_diff_calibration){
+		if (Math.abs(angle_rate_offset-new_offset) >= max_diff_calibration){
 			// Indicar que hay que mantener quieto al robot
 			// Poner cara de gruñon.
+			
 			System.out.println("No te muevas");
+			Button.LEDPattern(2);
+			gyro.reset();
+			
 		}
 
 		// Para debug.
 		System.out.println("Gyro offset: "+angle_rate_offset);
 		
-		} while(Math.abs(angle_rate_offset) >= max_diff_calibration);	
+		} while(Math.abs(angle_rate_offset - new_offset) >= max_diff_calibration);	
 		
 		// Indica que se ha conseguido la calibración
 
 	}
 	
-	public float getRateAngle(){
+	public double getRateAngle(){
 		
 		float raw_gyro[] = new float[1];
 		
 		gyro.getRateMode().fetchSample(raw_gyro, 0);
-		angle_rate = (float) filtergyro.filtrate(raw_gyro[0]-angle_rate_offset);
-				
+		angle_rate = (double) filtergyro.filtrate(raw_gyro[0]-angle_rate_offset);
+		
 		return angle_rate;
 	}
 	
-	public float getAngle(float time){
+	/*
+	 * Reliaza la integración numérica de velocidad de giro medida con el giroscopio.
+	 */
+	
+	public double getAngle(){
 		
-		float raw_angle;
+		double raw_angle;
+		long currentTime = System.currentTimeMillis();
 		
-		raw_angle = angle + angle_rate * time;
-		angle = (float) filtergyro.filtrate(raw_angle);
+		if (currentTime != lastAngleTime){
+			raw_angle = angle +  angle_rate * ( (int) (currentTime - lastAngleTime) )/1000;
+			angle = filterangle.filtrate(raw_angle);
+		}
+		
+		lastAngleTime = currentTime;
 				
 		return angle;
 	}
@@ -127,6 +149,7 @@ public class EV3Gyro {
 	  
 	  // Se resetean los parámetros del giroscopio
 	  angle_rate = 0.0f;
+	  lastAngleTime = 0;
 	  filtergyro.reset();
 	  
       angle = 0.0f;

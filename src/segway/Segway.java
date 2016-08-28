@@ -26,16 +26,33 @@ public class Segway {
 		EV3 chip = (EV3) BrickFinder.getDefault();
 		TextLCD lcd = chip.getTextLCD();     
 		Keys keys = chip.getKeys();
-		threadStabilizer = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("D"));
+		threadStabilizer = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("A"));
 		
 		threadStabilizer.start();
 		
-	
+		int i = 0;
 		while (true){
-			System.out.println("Hola");
+			if (i++ > 9)
+				i = 0;
+			Button.LEDPattern(i);
+			
+			/* Para debug */
+			lcd.drawString("Gyro       ", 2, 2);
+			lcd.drawInt((int)threadStabilizer.PsiDot, 7, 2);
+			lcd.drawString("Angulo      ", 1, 3);
+			lcd.drawInt((int)threadStabilizer.Psi, 7, 3);
+			lcd.drawString("LT      ", 1, 5);
+			lcd.drawInt((int)threadStabilizer.delay, 3, 5);
 			
 			if (Button.ESCAPE.isDown())
 				return;
+			
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 			
 	}
