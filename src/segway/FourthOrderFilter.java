@@ -29,10 +29,7 @@ public class FourthOrderFilter {
 	 * Constructor
 	 */	
 	public FourthOrderFilter(){
-		for (int i = 0; i < 4; i++){
-			inputbuffer[i] = 0;
-			outputbuffer[i] = 0;
-		}
+		reset();
 	}
 	
 	public float filtrate(float data){
@@ -87,5 +84,13 @@ public class FourthOrderFilter {
           outputbuffer[0] = output;
 		    
 		  return output;
+	}
+	
+	public void reset(){
+		for (int i = 0; i < 4; i++){
+			inputbuffer[i] = 0;
+			outputbuffer[i] = 0;
+		}
+		return;
 	}
 }

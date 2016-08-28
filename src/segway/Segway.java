@@ -2,31 +2,42 @@ package segway;
 
 import lejos.hardware.BrickFinder;
 import lejos.hardware.Button;
+import lejos.hardware.Key;
 import lejos.hardware.Keys;
 import lejos.hardware.ev3.EV3;
 import lejos.hardware.lcd.TextLCD;
+import lejos.hardware.motor.EV3LargeRegulatedMotor;
+import lejos.hardware.motor.Motor;
+import lejos.hardware.port.MotorPort;
 import lejos.hardware.port.SensorPort;
+import lejos.hardware.port.TachoMotorPort;
 import lejos.hardware.sensor.EV3GyroSensor;
 import lejos.robotics.SampleProvider;
 import lejos.utility.Delay;
+
 /* Clases propias */
 import segway.Stabilizer;
 
 public class Segway {
 	
+	public static Stabilizer threadStabilizer;
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) {		
 		EV3 chip = (EV3) BrickFinder.getDefault();
 		TextLCD lcd = chip.getTextLCD();     
 		Keys keys = chip.getKeys();
+		threadStabilizer = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("D"));
 		
-		Stabilizer stabilizer = new Stabilizer(chip,SensorPort.S2);
+		threadStabilizer.start();
 		
-		//stabilizer.calibrateGyro();
-		
-		keys.waitForAnyPress();
-		
-		return;
+	
+		while (true){
+			System.out.println("Hola");
+			
+			if (Button.ESCAPE.isDown())
+				return;
+		}
+			
 	}
 
 }

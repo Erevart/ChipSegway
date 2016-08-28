@@ -84,8 +84,7 @@ public class PIDController {
     
     /**
      * The Integral low limit cutoff value ID. Use for limiting accumulation of <code>I (Ki * error * dt)</code> less than a defined value. Set to zero
-     *     to disable. Default is 0. Setting this clears the <code>I</code> term accumulator. The value passed to <tt>setPIDParam()</tt>
-     *     is cast to an <tt>int</tt>.
+     *     to disable. Default is 0. Setting this clears the <code>I</code> term accumulator.
      * <P>    This is one methodology to manage integral windup.
      * @see #setPIDParam
      * @see #getPIDParam
@@ -124,14 +123,14 @@ public class PIDController {
     private float Kd=0.0f;       			// derivative value determines the reaction based on the rate at which the error has been changing
     private int highLimit = 900;            // assuming control of motor speed and thereby max would be 900 deg/sec
     private int lowLimit = -highLimit;
-    private int previous_error = 0;
+    private double previous_error = 0;
     private int deadband = 0;
     private int dt = 0;                     // cycle time, ms
     private long cycleTime=0;               // used to calc the time between each call (dt) to doPID()
-    private int setpoint;                   // The setpoint to strive for
-    private int error;                      // proportional term
-    private int integral = 0;               // integral term
-    private float derivative;               // derivitive term
+    private double setpoint;                   // The setpoint to strive for
+    private double error;                      // proportional term
+    private double integral = 0;               // integral term
+    private double derivative;               // derivitive term
     private int integralHighLimit = 0;
     private int integralLowLimit = 0;
     private boolean integralLimited = false;
@@ -142,7 +141,7 @@ public class PIDController {
     private int msdelay;
 //    private Logger dataLogger=null;
     private int cycleCount=0;
-    private int PV;
+    private double PV;
 	
 	 /**
 	 * Constructor por defecto. 
@@ -198,7 +197,7 @@ public class PIDController {
                 this.lowLimit = (int)value;
                 break;
             case PIDController.PID_SETPOINT:
-                this.setpoint = (int)value;
+                this.setpoint = value;
                 this.cycleTime = 0;
                 break;
             case PIDController.PID_I_LIMITLOW:
@@ -221,8 +220,8 @@ public class PIDController {
      * @return The requested parameter value
      *  @see #setPIDParam
      */
-    public float getPIDParam(int paramID) {
-        float retval =0.0f;
+    public double getPIDParam(int paramID) {
+        double retval =0;
         switch (paramID) {
             case PIDController.PID_KP:
                 retval=this.Kp;
@@ -296,7 +295,7 @@ public class PIDController {
      * @see #setDelay
      * @return The Manipulated Variable <code>MV</code> to input into the process (motor speed, etc.)
      */
-    public int doPID(int processVariable){
+    public double doPID(double processVariable){
         int outputMV;
         int delay=0;
         this.PV = processVariable;
