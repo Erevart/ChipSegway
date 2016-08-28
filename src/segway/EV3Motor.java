@@ -21,6 +21,10 @@ class EV3Motor
 
    private EV3LargeRegulatedMotor leftMotor;
    private EV3LargeRegulatedMotor rightMotor;
+	
+   // Definición de parámetros del robot
+   public static final float diameter_wheel = 58f; 					// Diametro de las ruedas (mm). 
+   public static final float radio_wheel = diameter_wheel/2000f;		// Radio de las ruedas (m)
    
    // Sinusoidal parameters used to smooth motors
    private double sin_x = 0.0;
@@ -107,6 +111,51 @@ class EV3Motor
       return ((double) leftMotor.getSpeed() + 
             (double) rightMotor.getSpeed()) / 2.0;
    }
+   
+   
+   /**
+    * getPosition devuelve la velocidad de las ruedas en m.
+    * 
+    * @return a double con el valor de la velocidad.
+    * 
+    */
+   public double getRobotSpeed()
+   {
+      return ((double)leftMotor.getSpeed() + (double)rightMotor.getSpeed()) * (Math.toRadians(1) * radio_wheel / 2);
+    		  
+   }
+   
+   /**
+    * getRobotPosition devuele la posición de los motores calculada a partir de los encoders en m. 
+    * 
+    * @return a double con la posición de las ruedas.
+    */
+   public double getRobotPosition()
+   {
+      return ((double) leftMotor.getTachoCount() + (double) rightMotor.getTachoCount()) * (Math.toRadians(1) * radio_wheel / 2);
+   }
+   
+   /**
+    * getRightAngle devuelve la posición del motor derecho en grados.
+    * 
+    * @return a double con la posición del motor derecho.
+    */
+   public double getRightAngle()
+   {
+      return (double) rightMotor.getTachoCount();
+   }
+   
+   
+   /**
+    * getLeftAngle devuelve la posición del motor izquierdo en grados.
+    * 
+    * @return a double con la posición del motor izquierdo.
+    */
+   public double getLeftAngle()
+   {
+      return (double) leftMotor.getTachoCount();
+   }
+   
 
    /**
     * reset the motors tacho count

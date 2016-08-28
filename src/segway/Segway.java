@@ -38,14 +38,16 @@ public class Segway {
 			
 			/* Para debug */
 			lcd.drawString("Gyro       ", 2, 2);
-			lcd.drawInt((int)threadStabilizer.PsiDot, 7, 2);
+			lcd.drawInt((int)Math.toDegrees(threadStabilizer.PsiDot), 7, 2);
 			lcd.drawString("Angulo      ", 1, 3);
-			lcd.drawInt((int)threadStabilizer.Psi, 7, 3);
-			lcd.drawString("LT      ", 1, 5);
-			lcd.drawInt((int)threadStabilizer.delay, 3, 5);
+			lcd.drawInt((int)Math.toDegrees(threadStabilizer.Psi), 7, 3);
+			lcd.drawInt((int)threadStabilizer.delay, 7, 7);
+
 			
-			if (Button.ESCAPE.isDown())
+			if (Button.ESCAPE.isDown()){
+				threadStabilizer.setStateStabilizer(false);
 				return;
+			}
 			
 			try {
 				Thread.sleep(100);

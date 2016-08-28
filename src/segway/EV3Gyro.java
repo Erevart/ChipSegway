@@ -19,12 +19,12 @@ import segway.FourthOrderFilter;
 public class EV3Gyro {
 	
 	private final int sample_calibration = 500;
-	private final float max_diff_calibration = 10.0f;
+	private final float max_diff_calibration = 0.17f;
 	
 	// Variables de los sensores
-	private double angle = 0f;
-	private double angle_rate = 0f;
-	private double angle_rate_offset = 0f;
+	private double angle = 0;
+	private double angle_rate = 0;
+	private double angle_rate_offset = 0;
 	private long lastAngleTime = 0;
 	
 
@@ -76,13 +76,13 @@ public class EV3Gyro {
 		do{
 		
 		n = sample_calibration;
-		new_offset = angle_rate_offset;
+		//new_offset = angle_rate_offset;
 		angle_rate_offset = 0;
 		
 		
 		while (n-- != 0){
 			gyro.getRateMode().fetchSample(raw_gyro, 0);
-			angle_rate_offset += raw_gyro[0];
+			angle_rate_offset += Math.toRadians(raw_gyro[0]);
 			try {
 				Thread.sleep(5);
 			} catch (InterruptedException e) {
@@ -109,15 +109,16 @@ public class EV3Gyro {
 		} while(Math.abs(angle_rate_offset - new_offset) >= max_diff_calibration);	
 		
 		// Indica que se ha conseguido la calibración
+		lcd.clear();
 
 	}
 	
 	public double getRateAngle(){
 		
-		float raw_gyro[] = new float[1];
+		float[] raw_gyro = new float[1];
 		
 		gyro.getRateMode().fetchSample(raw_gyro, 0);
-		angle_rate = (double) filtergyro.filtrate(raw_gyro[0]-angle_rate_offset);
+		angle_rate = (double) filtergyro.filtrate(Math.toRadians(raw_gyro[0])-angle_rate_offset);
 		
 		return angle_rate;
 	}
@@ -132,9 +133,14 @@ public class EV3Gyro {
 		long currentTime = System.currentTimeMillis();
 		
 		if (currentTime != lastAngleTime){
-			raw_angle = angle +  angle_rate * ( (int) (currentTime - lastAngleTime) )/1000;
-			angle = filterangle.filtrate(raw_angle);
+			raw_angle = angle +  angle_rate * ( (double) (currentTime - lastAngleTime) )/1000;
+			//angle = filterangle.filtrate(raw_angle);
+			angle = raw_angle;
 		}
+		
+		float[] raw_gyro = new float[1];
+		
+		gyro.getAngleMode().fetchSample(raw_gyro, 0);
 		
 		lastAngleTime = currentTime;
 				
@@ -144,7 +150,7 @@ public class EV3Gyro {
    /**
     * Reset the gyro angle
     */
-   public void resetGyro()
+   public void reset()
    {
 	  
 	  // Se resetean los parámetros del giroscopio

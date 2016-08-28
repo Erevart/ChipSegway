@@ -125,7 +125,7 @@ public class PIDController {
     private int lowLimit = -highLimit;
     private double previous_error = 0;
     private int deadband = 0;
-    private int dt = 0;                     // cycle time, ms
+    private double dt = 0;                     // cycle time, ms
     private long cycleTime=0;               // used to calc the time between each call (dt) to doPID()
     private double setpoint;                   // The setpoint to strive for
     private double error;                      // proportional term
@@ -295,7 +295,7 @@ public class PIDController {
      * @see #setDelay
      * @return The Manipulated Variable <code>MV</code> to input into the process (motor speed, etc.)
      */
-    public double doPID(double processVariable){
+    public int doPID(double processVariable){
         int outputMV;
         int delay=0;
         this.PV = processVariable;
@@ -311,7 +311,8 @@ public class PIDController {
             if (integral>integralHighLimit) integral = integralHighLimit;
             if (integral<integralLowLimit) integral = integralLowLimit;
         }
-        derivative = ((float)(error - previous_error))/dt;
+        if (dt != 0)
+        	derivative = ((float)(error - previous_error))/dt;
         outputMV = (int)(Kp*error + integral + Kd*derivative);
         
         if (outputMV>highLimit) outputMV=highLimit;
@@ -330,7 +331,7 @@ public class PIDController {
 
         cycleCount++;
         // global time it took to get back to this statement
-        dt = (int)(System.currentTimeMillis() - this.cycleTime);
+        dt = (double)(System.currentTimeMillis() - this.cycleTime)/1000;
         this.cycleTime = System.currentTimeMillis();
         return outputMV;
     }
