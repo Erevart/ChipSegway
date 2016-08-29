@@ -19,7 +19,7 @@ import segway.FourthOrderFilter;
 public class EV3Gyro {
 	
 	private final int sample_calibration = 500;
-	private final float max_diff_calibration = 0.17f;
+	private final float max_diff_calibration = 0.2f;
 	
 	// Variables de los sensores
 	private double angle = 0;
@@ -91,7 +91,7 @@ public class EV3Gyro {
 			}
 		}
 		
-		angle_rate_offset /= n;
+		angle_rate_offset /= sample_calibration;
 		
 		if (Math.abs(angle_rate_offset-new_offset) >= max_diff_calibration){
 			// Indicar que hay que mantener quieto al robot
@@ -99,7 +99,7 @@ public class EV3Gyro {
 			
 			System.out.println("No te muevas");
 			Button.LEDPattern(2);
-			gyro.reset();
+			//gyro.reset();
 			
 		}
 
@@ -138,12 +138,13 @@ public class EV3Gyro {
 			angle = raw_angle;
 		}
 		
-		float[] raw_gyro = new float[1];
+		//float[] raw_gyro = new float[1];
 		
-		gyro.getAngleMode().fetchSample(raw_gyro, 0);
+		//gyro.getAngleMode().fetchSample(raw_gyro, 0);
 		
 		lastAngleTime = currentTime;
 				
+		//return (double) Math.toRadians(raw_gyro[0]);
 		return angle;
 	}
 	
