@@ -30,6 +30,7 @@ public class Segway {
 		
 		threadStabilizer.start();
 		
+		
 		int i = 0;
 		while (true){
 			if (i++ > 9)
@@ -37,24 +38,20 @@ public class Segway {
 			Button.LEDPattern(i);
 			
 			/* Para debug */
+			/*
 			lcd.drawString("Gyro       ", 2, 2);
 			lcd.drawInt((int)Math.toDegrees(threadStabilizer.PsiDot), 7, 2);
 			lcd.drawString("Angulo      ", 1, 3);
 			lcd.drawInt((int)Math.toDegrees(threadStabilizer.Psi), 7, 3);
-			lcd.drawInt((int)threadStabilizer.delay, 7, 7);
+			*/
 
 			
 			if (Button.ESCAPE.isDown()){
-				threadStabilizer.setStateStabilizer(false);
+				threadStabilizer.setStateStabilizer(true);
 				return;
 			}
 			
-			try {
-				Thread.sleep(100);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			try {Thread.sleep(100);} catch (InterruptedException e) { e.printStackTrace();}
 		}
 			
 	}
