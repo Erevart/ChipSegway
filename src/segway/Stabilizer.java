@@ -62,15 +62,13 @@ public final class Stabilizer {
 	private double max_acc = 0;
 	
 	// Definición de controladores
-	PIDController PID;
+	private PIDController PID;
 	
 	// Definición de sensores y actuadores
-	EV3Gyro gyro;
-	EV3Motor motors;
+	private EV3Gyro gyro;
+	private EV3Motor motors;
 	
 	/* Revisar todo de aqui en adelante */
-	private boolean isrun = true;
-	private long previous_time = 0;
 	private TextLCD lcd;
 	private EV3 chip;
 	public int delay = 0;
@@ -105,7 +103,7 @@ public final class Stabilizer {
 	
 		
 		/* Atributos de permiso y acceso */
-		setStateStabilizer(true);
+		setStateStabilizer(false);
 		
 	}	
 	
@@ -186,12 +184,14 @@ public final class Stabilizer {
 			
 			long stabilizerTime = 0;
 			double power_motors = 0;
-			double turns_power_motors = 0;;
+			double turns_power_motors = 0;
+			double power_rightmotor = 0;
+			double power_leftmotor = 0;
 	
 			do {
 				// Código a ejecutar de forma concurrente
 				// Determinar condicion para salir del bucle cuando el robot se cae
-				while(Math.abs(Psi) < falling_down && getStateStabilizer()){
+				while(Math.abs(Psi) < falling_down && !getStateStabilizer()){
 					
 					stabilizerTime = System.currentTimeMillis();
 					//ctrl.setUpright(true);
@@ -208,14 +208,16 @@ public final class Stabilizer {
 					// motorcontroller.setPIDParam(PIDController.PID_SETPOINT, refspeed);
 					
 					power_motors = PID.doPID(error);
-					// turns_power_motor = getSteering();
-					// power_rightmotor = (power_motors - turns_power_motor) * (0.0021 / EV3Motor.radio_wheel)
-					// power_leftmotor = (power_motors + turns_power_motor) * (0.0021 / EV3Motor.radio_wheel)
+			//		turns_power_motors = getSteering();
+					power_rightmotor = (power_motors - turns_power_motors) * (0.021 / EV3Motor.radio_wheel);
+					power_leftmotor = (power_motors + turns_power_motors) * (0.021 / EV3Motor.radio_wheel);
 					            
 		            //motors.setPower(pw + ctrl.leftMotorOffset(), pw + ctrl.rightMotorOffset());
-		   //         motors.setPower(power_rightmotor, power_leftmotors);
-										
-
+					motors.setPower(power_rightmotor, power_leftmotor);
+		            //motors.setPower(power_motors, power_motors);
+					
+					lcd.drawInt((int)power_motors, 7, 7);
+					
 					if (System.currentTimeMillis()-stabilizerTime < dt)
 						delay = (int) (dt - (System.currentTimeMillis()-stabilizerTime) );
 					else
@@ -227,17 +229,24 @@ public final class Stabilizer {
 					
 				}
 				motors.stop();
-				setStateStabilizer(false);
+				setStateStabilizer(true);
 				
-				while (Math.abs(Psi) > falling_down && !getStateStabilizer()){
+			/*	while (Math.abs(Psi) > falling_down && getStateStabilizer()){
+					lcd.drawString("Me he enfadado", 2, 7);
+					lcd.drawString("Gyro       ", 2, 2);
+					lcd.drawInt((int)Math.toDegrees(PsiDot), 7, 2);
+					lcd.drawString("Angulo      ", 1, 3);
+					lcd.drawInt((int)Math.toDegrees(Psi), 7, 3);
+					lcd.drawInt((int)power_motors, 7, 7);
 					updateVariableState();
 				//	Sound.beep();
 					Button.LEDPattern(7);
+					lcd.clear();
 					if (Button.ESCAPE.isDown())
 						return;
 					try { Thread.sleep((long) dt);} catch (InterruptedException e) {}
 				}
-			
+			*/
 				if (Button.UP.isDown()){
 					setStateStabilizer(true);
 					gyro.reset();
