@@ -1,5 +1,7 @@
 package segway;
 
+import java.io.*;
+
 import lejos.hardware.BrickFinder;
 import lejos.hardware.Button;
 import lejos.hardware.Key;
@@ -20,38 +22,56 @@ import segway.Stabilizer;
 
 public class Segway {
 	
-	public static Stabilizer threadStabilizer;
+	
+	public static boolean SOUND = true;	// Indica si se activan los pitidos.
+	
+	public static Stabilizer gyroboy;
 	
 	public static void main(String[] args) {		
 		EV3 chip = (EV3) BrickFinder.getDefault();
 		TextLCD lcd = chip.getTextLCD();     
 		Keys keys = chip.getKeys();
-		threadStabilizer = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("A"));
 		
-		threadStabilizer.start();
+		gyroboy = new Stabilizer(chip,SensorPort.S3,chip.getPort("D"),chip.getPort("A"));
+		gyroboy.start();
 		
+		/*
+		PrintWriter writer = null;
+		try {
+			writer = new PrintWriter("the-file-name.txt", "UTF-8");
+		} catch (FileNotFoundException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (UnsupportedEncodingException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		writer.println("The first line");
+		writer.println("The second line");
+		writer.close();	
+		*/
 		
 		int i = 0;
 		while (true){
-			if (i++ > 9)
+			if (i++ > 8)
 				i = 0;
-			Button.LEDPattern(i);
+			
+	//		Button.LEDPattern(i);
 			
 			/* Para debug */
-			/*
-			lcd.drawString("Gyro       ", 2, 2);
-			lcd.drawInt((int)Math.toDegrees(threadStabilizer.PsiDot), 7, 2);
-			lcd.drawString("Angulo      ", 1, 3);
-			lcd.drawInt((int)Math.toDegrees(threadStabilizer.Psi), 7, 3);
-			*/
-
+			lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
+			lcd.drawString("Angulo: "+ 57*gyroboy.getStabilizerAngle()+ "     ", 1, 3);
+			
+			lcd.drawString("Var i "+ i+ "   ", 1, 6);
+			
 			
 			if (Button.ESCAPE.isDown()){
-				threadStabilizer.setStateStabilizer(true);
+				System.out.println("Fuera");
+				gyroboy.setStateStabilizer(true);
 				return;
 			}
-			
-			try {Thread.sleep(100);} catch (InterruptedException e) { e.printStackTrace();}
+
+			try {Thread.sleep(200);} catch (InterruptedException e) { e.printStackTrace();}
 		}
 			
 	}

@@ -7,7 +7,8 @@ package segway;
  *
  */
 public class FourthOrderFilter {
-	
+
+	/*
 	final private double _b0 = 0.001893594048567;
 	final private double _b1 = -0.002220262954039;
 	final private double _b2 = 0.003389066536478;
@@ -18,6 +19,19 @@ public class FourthOrderFilter {
 	final private double _a2 = 4.282608240117919;
 	final private double _a3 = -2.444765517272841;
 	final private double _a4 = 0.527149895089809;
+	*/
+	// cheby2(4,80,7.5/50)
+	
+	final private double _b0 = 0.000133915564256199;
+	final private double _b1 = -0.000350496206949809;
+	final private double _b2 =  0.000471439054629189;
+	final private double _b3 = -0.000350496206949810;
+	final private double _b4 = 0.000133915564256199;
+	  
+	final private double _a1 = -3.789736516006818 ;
+	final private double _a2 = 5.391036665652461;
+	final private double _a3 = -3.411557330314591;
+	final private double _a4 = 0.810295458438189;
 	
 	/* Variables de entrada para el diseño del filtro */
 	private double inputbuffer[] = new double[4];

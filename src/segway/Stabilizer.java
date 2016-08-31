@@ -3,6 +3,14 @@
  */
 package segway;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.*;
+
+
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
 import lejos.ev3.tools.EV3Console;
 import lejos.hardware.BrickFinder;
 import lejos.hardware.Button;
@@ -26,14 +34,14 @@ public final class Stabilizer {
 		
 	// Sintonización variables del controlador 
 	private final int falling_down = (int) (Math.PI/3); // Umbral de inclinación a partir de cual no se ejecuta el controlador. 
-	private final float dt = 10f; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+	private final int dt = 20; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
 	private float kp = 0.5f;		// Ganancia proporcional
 	private float ki = 11f;			// Ganancia integral
 	private float kd = 0.005f;		// Ganancia derivativa
 	/* Consignas */
 	private double error = 0;
-	private float refspeed = 0f;
-	public boolean stateStabilizer = false;
+	private float refpos = 0f;
+	private boolean stateStabilizer = false;
 	
 	// Ponderación de las variables del sistema (Variables Lego)
 	private float Kpsidot = 1.3f; // Ganancia de velocidad angular. 
@@ -54,19 +62,24 @@ public final class Stabilizer {
    // private final double Kphidot = 0.028141; // Motor angle velocity weight
 	
 	// Variables del sistema
-	public double Psi = 0;
-	public double PsiDot = 0;
-	private double Phi = 0;
-	private double PhiDot = 0;
-	private double steering = 0;
-	private double max_acc = 0;
+	private float Psi = 0;
+	private float PsiDot = 0;
+	private float Phi = 0;
+	private float PhiDot = 0;
+	private float steering = 0;
+	private float new_steering = 0;
+	private float steering_sync = 0;
 	
 	// Definición de controladores
 	private PIDController PID;
 	
 	// Definición de sensores y actuadores
-	private EV3Gyro gyro;
+	public EV3Gyro gyro;
 	private EV3Motor motors;
+	
+	// Mutex - Lock
+	private Lock lock_drivecontrol;
+	private Lock lock_stabilizer;
 	
 	/* Revisar todo de aqui en adelante */
 	private TextLCD lcd;
@@ -103,6 +116,9 @@ public final class Stabilizer {
 	
 		
 		/* Atributos de permiso y acceso */
+		lock_drivecontrol = new ReentrantLock();
+		lock_stabilizer = new ReentrantLock();
+		
 		setStateStabilizer(false);
 		
 	}	
@@ -112,6 +128,8 @@ public final class Stabilizer {
 	 */
 	private void updateVariableState(){
 		
+		lock_stabilizer.lock();
+		
         // Actualización variables del sistema
 		PsiDot = gyro.getRateAngle();
         Psi = gyro.getAngle();
@@ -120,7 +138,69 @@ public final class Stabilizer {
         Phi = motors.getRobotPosition();// - ctrl.tiltAngle();
         PhiDot = motors.getRobotSpeed();
         
-        return;
+        lock_stabilizer.unlock();
+        
+	}
+	
+	/*
+	 * Devuelve la velocidad de avance de las ruedas.
+	 */
+	public float getStabilizerSpeed(){
+		
+		float PhiDot = 0;
+		
+		lock_stabilizer.lock();
+        PhiDot = this.PhiDot;
+        lock_stabilizer.unlock();
+        
+        return PhiDot;
+        
+	}
+
+	
+	/*
+	 * Devuelve el ángulo de giro de las ruedas.
+	 */
+	public float getStabilizerPosition(){
+		
+		float Phi = 0;
+		
+		lock_stabilizer.lock();
+        Phi = this.Phi;
+        lock_stabilizer.unlock();
+        
+        return Phi;
+        
+	}
+
+	/*
+	 * Devuelve el valor de la velocidad de inclinación del robot.
+	 */
+	public float getStabilizerRateAngle(){
+		
+		float PsiDot = 0;
+		
+		lock_stabilizer.lock();
+        PsiDot = this.PsiDot;
+        lock_stabilizer.unlock();
+        
+        return PsiDot;
+        
+	}
+	
+	/*
+	 * Devuelve el valor del angulo de inclinación del robot.
+	 */
+	public float getStabilizerAngle(){
+		
+		float Psi = 0;
+		
+		lock_stabilizer.lock();
+        Psi = this.Psi;
+        lock_stabilizer.unlock();
+        
+        return Psi;
+        
 	}
 	
 	/*
@@ -129,34 +209,55 @@ public final class Stabilizer {
 	 */
 	private void updateWeighingLQR(){
 		
-		// refspeed += getSpeed() * (dt/1000) * 0.002
-		
-		error = Psi * Kpsi +
-				PsiDot * Kpsidot +
-				( Phi - refspeed) * Kphi +
-				PhiDot * Kphidot;
+		// refpos += getSpeed() * (dt/1000) * 0.002
+		error = Kpsi * Psi +
+				Kpsidot * PsiDot +
+				Kphi * ( Phi - refpos) +
+				Kphidot * PhiDot;
 		
 	}
 	
 	public boolean getStateStabilizer(){
+		
+		boolean stateStabilizer;
+		
+		lock_stabilizer.lock();
+		stateStabilizer = this.stateStabilizer;
+		lock_stabilizer.unlock();
 		
 		return stateStabilizer;
 	}
 	
 	public void setStateStabilizer(boolean state){
 		
+		lock_stabilizer.lock();
+		
 		stateStabilizer = state;
+		
+		lock_stabilizer.unlock();
 	}
 	
-	public double getSteering(){
-		// Posible lock
-		double new_steering = 0;
+	public void setSteering(float steering){
+		
+		lock_drivecontrol.lock();
+		new_steering = steering;
+		lock_drivecontrol.unlock();
+	}
 	
+	private float getSteering(){
+		// Posible lock
+		
+		float new_steering = 0;
+		
+		lock_drivecontrol.lock();
+		// Se actualiza el valor de la variable global de la clase a la local del método.
+		new_steering = this.new_steering;
+		lock_drivecontrol.unlock();
 		
 		if (new_steering == 0){
 		
-			double steering_sync = (steering != 0)?(motors.getRightAngle() - motors.getLeftAngle()):0;
-			new_steering = (motors.getRightAngle() - motors.getLeftAngle() - steering_sync) * 0.05;
+			steering_sync = (steering != 0)?(motors.getRightAngle() - motors.getLeftAngle()):0;
+			new_steering = (motors.getRightAngle() - motors.getLeftAngle() - steering_sync) * 0.05f;
 			return new_steering;
 			
 		}
@@ -183,17 +284,21 @@ public final class Stabilizer {
 		public void run () {
 			
 			long stabilizerTime = 0;
-			double power_motors = 0;
-			double turns_power_motors = 0;
-			double power_rightmotor = 0;
-			double power_leftmotor = 0;
-	
-			do {
+			float power_motors = 0;
+			float turns_power_motors = 0;
+			float power_rightmotor = 0;
+			float power_leftmotor = 0;
+			long last_time = System.currentTimeMillis();
+			
+
+			while(true) {
 				// Código a ejecutar de forma concurrente
 				// Determinar condicion para salir del bucle cuando el robot se cae
-				while(Math.abs(Psi) < falling_down && !getStateStabilizer()){
+				
 					
 					stabilizerTime = System.currentTimeMillis();
+					lcd.drawString("Tiempo" + (stabilizerTime - last_time) + "   ", 1, 1);
+					last_time = stabilizerTime;
 					//ctrl.setUpright(true);
 		            // runDriveState();
 		            
@@ -209,57 +314,52 @@ public final class Stabilizer {
 					
 					power_motors = PID.doPID(error);
 			//		turns_power_motors = getSteering();
-					power_rightmotor = (power_motors - turns_power_motors) * (0.021 / EV3Motor.radio_wheel);
-					power_leftmotor = (power_motors + turns_power_motors) * (0.021 / EV3Motor.radio_wheel);
+					power_rightmotor = (power_motors - turns_power_motors) * (0.021f / EV3Motor.radio_wheel);
+					power_leftmotor = (power_motors + turns_power_motors) * (0.021f / EV3Motor.radio_wheel);
 					            
-		            //motors.setPower(pw + ctrl.leftMotorOffset(), pw + ctrl.rightMotorOffset());
-					motors.setPower(power_rightmotor, power_leftmotor);
-		            //motors.setPower(power_motors, power_motors);
+					if(Math.abs(Psi) < falling_down && !getStateStabilizer()){
+			            //motors.setPower(pw + ctrl.leftMotorOffset(), pw + ctrl.rightMotorOffset());
+						//motors.setPower(power_rightmotor, power_leftmotor);
+			            //motors.setPower(power_motors, power_motors);
+						Button.LEDPattern(1);
+					}
+					else {
+						motors.stop();
+						setStateStabilizer(true);
+						if  (Math.abs(Psi) > falling_down && getStateStabilizer()){
+							// Se enfada al caerse
+							Button.LEDPattern(8);
+						}
 					
-					lcd.drawInt((int)power_motors, 7, 7);
+						if (Button.ESCAPE.isDown()){
+							gyro.logClose();
+							break;
+						}
+						else if (Button.UP.isDown()){
+							setStateStabilizer(true);
+							gyro.reset();
+							motors.resetMotors();
+						}
+					}
 					
-					if (System.currentTimeMillis()-stabilizerTime < dt)
-						delay = (int) (dt - (System.currentTimeMillis()-stabilizerTime) );
+					//lcd.drawInt((int)power_motors, 2, 7);
+					//lcd.drawInt((int)power_rightmotor, 7, 7);
+					
+					// Se añade 2 ms más para garantizar el tiempo del bucle.
+					delay = 2 + (int) ( System.currentTimeMillis()-stabilizerTime ) ;
+					
+					int delay2 =0;
+					if (delay >= dt)
+						delay2 = (int) dt;
 					else
-						delay = (int) dt;	
+						delay2 = (int) (dt - delay);
 						            
 		            // Delay used to stop Gyro being read to quickly. May need to be increase or
 		            // decreased depending on leJOS version.
-					try {Thread.sleep(delay);} catch (Exception e) {}
-					
-				}
-				motors.stop();
-				setStateStabilizer(true);
-				
-			/*	while (Math.abs(Psi) > falling_down && getStateStabilizer()){
-					lcd.drawString("Me he enfadado", 2, 7);
-					lcd.drawString("Gyro       ", 2, 2);
-					lcd.drawInt((int)Math.toDegrees(PsiDot), 7, 2);
-					lcd.drawString("Angulo      ", 1, 3);
-					lcd.drawInt((int)Math.toDegrees(Psi), 7, 3);
-					lcd.drawInt((int)power_motors, 7, 7);
-					updateVariableState();
-				//	Sound.beep();
-					Button.LEDPattern(7);
-					lcd.clear();
-					if (Button.ESCAPE.isDown())
-						return;
-					try { Thread.sleep((long) dt);} catch (InterruptedException e) {}
-				}
-			*/
-				if (Button.UP.isDown()){
-					setStateStabilizer(true);
-					gyro.reset();
-					motors.resetMotors();
-					updateVariableState();
-				} else if (Button.ESCAPE.isDown())
-					break;
-				
-				try { Thread.sleep((long) dt);} catch (InterruptedException e) {}
-				
-			}while(true);
-			
-			return;
+					try {Thread.sleep(delay2);} catch (Exception e) {}
+									
+			}
+			//return;
 		}
 	}
 	
@@ -270,7 +370,10 @@ public final class Stabilizer {
 	 * @return 	none
 	 */
 	public void start() {
-		new Thread(new StabilizerThread()).start() ;
+		Thread segwaythread = new Thread(new StabilizerThread());
+		segwaythread.setPriority(Thread.MAX_PRIORITY);
+		segwaythread.start();
+		
 	}
 
 }

@@ -1,12 +1,18 @@
 package segway;
 
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+
 import lejos.hardware.Audio;
 import lejos.hardware.Button;
+import lejos.hardware.Sound;
 import lejos.hardware.ev3.EV3;
 import lejos.hardware.lcd.TextLCD;
 import lejos.hardware.port.Port;
 import lejos.hardware.sensor.EV3GyroSensor;
 import lejos.utility.Delay;
+import lejos.robotics.*;
 import segway.FourthOrderFilter;
 
 /**
@@ -19,12 +25,13 @@ import segway.FourthOrderFilter;
 public class EV3Gyro {
 	
 	private final int sample_calibration = 500;
-	private final float max_diff_calibration = 0.2f;
+	private final float max_diff_calibration = 0.08f;
+	private final float a = 0.95f;// Weight of older offset values .
 	
 	// Variables de los sensores
-	private double angle = 0;
-	private double angle_rate = 0;
-	private double angle_rate_offset = 0;
+	private float angle = 0;
+	private float angle_rate = 0;
+	private float angle_rate_offset = 0;
 	private long lastAngleTime = 0;
 	
 
@@ -36,28 +43,41 @@ public class EV3Gyro {
 	
 	// Filtro
 	FourthOrderFilter filtergyro;
-	FourthOrderFilter filterangle;
- 	
 	
-	
+	/**
+	 * Datalloger
+	 * Indicar que dato se guardarán
+	 */
+	PrintWriter gyrolog = null;
+ 		
 	 /**
 	 * Constructor
 	 */
 	public EV3Gyro(EV3 device, Port PortGyro) {
 		
+		/* Indicador que se inicio la inicialización del giroscopio */
+		
+		// Play tone: frequency 440Hz, volume 10
+		// duration 0.1sec, play type 0
+		if(Segway.SOUND)
+			Sound.playTone(440, 100, 10);
+		
 		/* Inicialización de atributos */
-		Button.LEDPattern(4);
+		Button.LEDPattern(6);
 		chip = device;
 		gyro = new EV3GyroSensor(PortGyro);
 		lcd = device.getTextLCD();
 		
 		filtergyro = new FourthOrderFilter();
-		filterangle = new FourthOrderFilter();
 		
 		/* Método de inicialización */
 		// Se calcula el valor de offset para la calibración del giroscopio.
 		calibrateGyro();
 		Button.LEDPattern(0);
+		
+		try {gyrolog = new PrintWriter("dataGyro.txt", "UTF-8");}
+		catch (FileNotFoundException e1) {e1.printStackTrace();}
+		catch (UnsupportedEncodingException e1) {e1.printStackTrace();}
 	
 	}
 	
@@ -69,83 +89,104 @@ public class EV3Gyro {
 	public void calibrateGyro(){
 		
 		int n;
-		double new_offset = 0;
-		float raw_gyro[] = new float[1];
-	
+		
+		// Reset del sensor.
+		gyro.reset();
+					
 		// Se inicializa el giroscopio. Se calcula su valor de offset.
 		do{
 		
 		n = sample_calibration;
-		//new_offset = angle_rate_offset;
-		angle_rate_offset = 0;
-		
+		angle_rate_offset = 0;	
 		
 		while (n-- != 0){
-			gyro.getRateMode().fetchSample(raw_gyro, 0);
-			angle_rate_offset += Math.toRadians(raw_gyro[0]);
-			try {
-				Thread.sleep(5);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			angle_rate_offset +=getRawGyro();
+			try { Thread.sleep(5);} catch (InterruptedException e) {e.printStackTrace();}
+			
 		}
 		
 		angle_rate_offset /= sample_calibration;
 		
-		if (Math.abs(angle_rate_offset-new_offset) >= max_diff_calibration){
+		if (Math.abs( (float) ( getRawGyro() - angle_rate_offset ) ) >= max_diff_calibration){
 			// Indicar que hay que mantener quieto al robot
 			// Poner cara de gruñon.
 			
 			System.out.println("No te muevas");
-			Button.LEDPattern(2);
-			//gyro.reset();
+			Button.LEDPattern(5);
+			gyro.reset();
 			
 		}
 
-		// Para debug.
-		System.out.println("Gyro offset: "+angle_rate_offset);
+		/**
+		 *  DEBUG
+		 */
+		//System.out.println("Gyro offset: "+ angle_rate_offset*57);
+		//Button.waitForAnyPress();
 		
-		} while(Math.abs(angle_rate_offset - new_offset) >= max_diff_calibration);	
+		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
 		
 		// Indica que se ha conseguido la calibración
-		lcd.clear();
-
+		// Play tone: frequency 440Hz, volume 10
+		// duration 0.1sec, play type 0
+		if(Segway.SOUND)
+			Sound.playTone(440, 200, 10);
+		
 	}
 	
-	public double getRateAngle(){
+	public float getRateAngle(){
 		
-		float[] raw_gyro = new float[1];
+		angle_rate = filtergyro.filtrate(getRawGyro()-angle_rate_offset);	
 		
-		gyro.getRateMode().fetchSample(raw_gyro, 0);
-		angle_rate = (double) filtergyro.filtrate(Math.toRadians(raw_gyro[0])-angle_rate_offset);
+		/**
+		 * Datalogg
+		 */
+		gyrolog.print(angle_rate_offset+","+angle_rate+","+ (getRawGyro()-angle_rate_offset) );
 		
 		return angle_rate;
 	}
 	
 	/*
-	 * Reliaza la integración numérica de velocidad de giro medida con el giroscopio.
+	 * Realiza la integración numérica de velocidad de giro medida con el giroscopio.
 	 */
-	
-	public double getAngle(){
+
+	public float getAngle(){
 		
-		double raw_angle;
 		long currentTime = System.currentTimeMillis();
 		
-		if (currentTime != lastAngleTime){
-			raw_angle = angle +  angle_rate * ( (double) (currentTime - lastAngleTime) )/1000;
-			//angle = filterangle.filtrate(raw_angle);
-			angle = raw_angle;
+		if (currentTime != lastAngleTime && lastAngleTime != 0){
+			angle = angle +  angle_rate * ((float) (currentTime - lastAngleTime))/1000;
 		}
 		
-		//float[] raw_gyro = new float[1];
-		
-		//gyro.getAngleMode().fetchSample(raw_gyro, 0);
+		// 0.017 = 1 deg
+		if ((angle > -0.017f) && (angle < 0.017f) )
+			angle_rate_offset = angle_rate_offset * a + (1.0f - a) *angle_rate;
+				
+		/**
+		 * Datalogg
+		 */
+		gyrolog.println(","+angle+","+(float) (currentTime - lastAngleTime));
 		
 		lastAngleTime = currentTime;
-				
-		//return (double) Math.toRadians(raw_gyro[0]);
+		
 		return angle;
+	}
+	
+	public float getRawGyro(){
+		
+		float[] raw_gyro= new float[1];
+
+		gyro.fetchSample(raw_gyro, 0);
+		
+		if (raw_gyro[0] > -0.2 && raw_gyro[0] < 0.2)
+			return 0;
+				
+		/**
+		 *  DEBUG
+		 */
+		// System.out.println("GYRO: "+ raw_gyro[0] );
+		// Button.waitForAnyPress();
+		
+		return (float) Math.toRadians(raw_gyro[0]);
 	}
 	
    /**
@@ -153,15 +194,17 @@ public class EV3Gyro {
     */
    public void reset()
    {
-	  
 	  // Se resetean los parámetros del giroscopio
 	  angle_rate = 0.0f;
 	  lastAngleTime = 0;
 	  filtergyro.reset();
 	  
       angle = 0.0f;
-      filterangle.reset();
       
+   }
+   
+   public void logClose(){
+	   gyrolog.close();
    }
 	
 
