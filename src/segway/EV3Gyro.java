@@ -11,6 +11,7 @@ import lejos.hardware.ev3.EV3;
 import lejos.hardware.lcd.TextLCD;
 import lejos.hardware.port.Port;
 import lejos.hardware.sensor.EV3GyroSensor;
+import lejos.hardware.sensor.SensorMode;
 import lejos.utility.Delay;
 import lejos.robotics.*;
 import segway.FourthOrderFilter;
@@ -26,15 +27,13 @@ public class EV3Gyro {
 	
 	private final int sample_calibration = 500;
 	private final float max_diff_calibration = 0.08f;
-	private final float a = 0.95f;// Weight of older offset values .
+	private final float adaptative_filter_offset = 0.98f;// Weight of older offset values .
 	
 	// Variables de los sensores
 	private float angle = 0;
 	private float angle_rate = 0;
 	private float angle_rate_offset = 0;
-	private long lastAngleTime = 0;
 	
-
 	
 	// Definición de sensores y hardware
 	private EV3GyroSensor gyro;
@@ -75,9 +74,14 @@ public class EV3Gyro {
 		calibrateGyro();
 		Button.LEDPattern(0);
 		
-		try {gyrolog = new PrintWriter("dataGyro.txt", "UTF-8");}
-		catch (FileNotFoundException e1) {e1.printStackTrace();}
-		catch (UnsupportedEncodingException e1) {e1.printStackTrace();}
+		
+		/**
+		 * Datalogg
+		 */
+		if (Segway.GYROLOG) 
+			try {gyrolog = new PrintWriter("dataGyro.txt", "UTF-8");}
+			catch (FileNotFoundException e1) {e1.printStackTrace();}
+			catch (UnsupportedEncodingException e1) {e1.printStackTrace();}
 	
 	}
 	
@@ -90,8 +94,11 @@ public class EV3Gyro {
 		
 		int n;
 		
-		// Reset del sensor.
-		gyro.reset();
+		// Método de calibración descrito por Lego®.
+		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
+		gyro.setCurrentMode("Rate");
+		gyro.setCurrentMode("Angle");
+		gyro.setCurrentMode("Rate");
 					
 		// Se inicializa el giroscopio. Se calcula su valor de offset.
 		do{
@@ -113,23 +120,24 @@ public class EV3Gyro {
 			
 			System.out.println("No te muevas");
 			Button.LEDPattern(5);
-			gyro.reset();
 			
 		}
 
 		/**
 		 *  DEBUG
 		 */
-		//System.out.println("Gyro offset: "+ angle_rate_offset*57);
-		//Button.waitForAnyPress();
+		if (Segway.GYRODB){
+			System.out.println("Gyro offset: "+ angle_rate_offset*57);
+			Button.waitForAnyPress();
+		}
 		
 		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
 		
 		// Indica que se ha conseguido la calibración
 		// Play tone: frequency 440Hz, volume 10
 		// duration 0.1sec, play type 0
-		if(Segway.SOUND)
-			Sound.playTone(440, 200, 10);
+		//if(Segway.SOUND)
+		//	Sound.playTone(440, 200, 10);
 		
 	}
 	
@@ -140,7 +148,8 @@ public class EV3Gyro {
 		/**
 		 * Datalogg
 		 */
-		gyrolog.print(angle_rate_offset+","+angle_rate+","+ (getRawGyro()-angle_rate_offset) );
+		if (Segway.GYROLOG) 
+			gyrolog.print(angle_rate_offset+","+angle_rate+","+ (getRawGyro()-angle_rate_offset) );
 		
 		return angle_rate;
 	}
@@ -151,40 +160,38 @@ public class EV3Gyro {
 
 	public float getAngle(){
 		
-		long currentTime = System.currentTimeMillis();
-		
-		if (currentTime != lastAngleTime && lastAngleTime != 0){
-			angle = angle +  angle_rate * ((float) (currentTime - lastAngleTime))/1000;
-		}
+		angle = angle +  angle_rate * Stabilizer.dt/1000;
 		
 		// 0.017 = 1 deg
-		if ((angle > -0.017f) && (angle < 0.017f) )
-			angle_rate_offset = angle_rate_offset * a + (1.0f - a) *angle_rate;
+		//if ((angle > -0.09f) && (angle < 0.09f) )
+		//	angle_rate_offset = angle_rate_offset * adaptative_filter_offset + (1.0f - adaptative_filter_offset)*angle_rate;
 				
 		/**
 		 * Datalogg
 		 */
-		gyrolog.println(","+angle+","+(float) (currentTime - lastAngleTime));
-		
-		lastAngleTime = currentTime;
+		if (Segway.GYROLOG) 
+			gyrolog.println(","+angle);
 		
 		return angle;
 	}
 	
 	public float getRawGyro(){
 		
-		float[] raw_gyro= new float[1];
+		float[] raw_gyro = new float[1];
 
-		gyro.fetchSample(raw_gyro, 0);
+		gyro.getRateMode().fetchSample(raw_gyro, 0);
 		
 		if (raw_gyro[0] > -0.2 && raw_gyro[0] < 0.2)
 			return 0;
+		
 				
 		/**
 		 *  DEBUG
 		 */
-		// System.out.println("GYRO: "+ raw_gyro[0] );
-		// Button.waitForAnyPress();
+		if (Segway.GYRODB){
+			System.out.println("GYRO: "+ raw_gyro[0] );
+		 	Button.waitForAnyPress();
+		}
 		
 		return (float) Math.toRadians(raw_gyro[0]);
 	}
@@ -196,7 +203,6 @@ public class EV3Gyro {
    {
 	  // Se resetean los parámetros del giroscopio
 	  angle_rate = 0.0f;
-	  lastAngleTime = 0;
 	  filtergyro.reset();
 	  
       angle = 0.0f;
