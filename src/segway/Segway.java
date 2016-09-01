@@ -22,6 +22,18 @@ import segway.Stabilizer;
 
 public class Segway {
 	
+	/**
+	 * Dataloggers
+	 */
+	public static boolean GYROLOG = false;
+	public static boolean MOTORLOG = true;
+	
+	/**
+	 * Debug
+	 */
+	public static boolean GYRODB = false;
+	public static boolean MOTORDB = false;
+	
 	
 	public static boolean SOUND = true;	// Indica si se activan los pitidos.
 	
@@ -59,20 +71,23 @@ public class Segway {
 	//		Button.LEDPattern(i);
 			
 			/* Para debug */
+			/*
 			lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
 			lcd.drawString("Angulo: "+ 57*gyroboy.getStabilizerAngle()+ "     ", 1, 3);
 			
 			lcd.drawString("Var i "+ i+ "   ", 1, 6);
-			
+			*/
 			
 			if (Button.ESCAPE.isDown()){
-				System.out.println("Fuera");
-				gyroboy.setStateStabilizer(true);
-				return;
+				break;
 			}
 
-			try {Thread.sleep(200);} catch (InterruptedException e) { e.printStackTrace();}
+			try {Thread.sleep(50);} catch (InterruptedException e) { e.printStackTrace();}
 		}
+		System.out.println("Fuera");
+		gyroboy.setStateStabilizer(true);
+		
+		return;
 			
 	}
 

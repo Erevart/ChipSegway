@@ -3,11 +3,7 @@
  */
 package segway;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.*;
-
-
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -34,7 +30,7 @@ public final class Stabilizer {
 		
 	// Sintonización variables del controlador 
 	private final int falling_down = (int) (Math.PI/3); // Umbral de inclinación a partir de cual no se ejecuta el controlador. 
-	private final int dt = 20; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+	public static final int dt = 20; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
 	private float kp = 0.5f;		// Ganancia proporcional
 	private float ki = 11f;			// Ganancia integral
 	private float kd = 0.005f;		// Ganancia derivativa
@@ -135,8 +131,8 @@ public final class Stabilizer {
         Psi = gyro.getAngle();
         
         // ctrl.tiltAngle() is used to drive the robot forwards and backwards
-        Phi = motors.getRobotPosition();// - ctrl.tiltAngle();
-        PhiDot = motors.getRobotSpeed();
+        Phi = motors.getPosition();// - ctrl.tiltAngle();
+        PhiDot = motors.getSpeed();
         
         lock_stabilizer.unlock();
         
@@ -209,7 +205,7 @@ public final class Stabilizer {
 	 */
 	private void updateWeighingLQR(){
 		
-		// refpos += getSpeed() * (dt/1000) * 0.002
+		// refpos += getSpeed();
 		error = Kpsi * Psi +
 				Kpsidot * PsiDot +
 				Kphi * ( Phi - refpos) +
@@ -297,7 +293,7 @@ public final class Stabilizer {
 				
 					
 					stabilizerTime = System.currentTimeMillis();
-					lcd.drawString("Tiempo" + (stabilizerTime - last_time) + "   ", 1, 1);
+					//lcd.drawString("Tiempo" + (stabilizerTime - last_time) + "   ", 1, 1);
 					last_time = stabilizerTime;
 					//ctrl.setUpright(true);
 		            // runDriveState();
@@ -332,7 +328,6 @@ public final class Stabilizer {
 						}
 					
 						if (Button.ESCAPE.isDown()){
-							gyro.logClose();
 							break;
 						}
 						else if (Button.UP.isDown()){
@@ -359,7 +354,9 @@ public final class Stabilizer {
 					try {Thread.sleep(delay2);} catch (Exception e) {}
 									
 			}
-			//return;
+			
+			if (Segway.GYROLOG) gyro.logClose();
+			if (Segway.MOTORLOG) motors.logClose();
 		}
 	}
 	
