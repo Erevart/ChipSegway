@@ -1,5 +1,9 @@
 package segway;
 
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+
 import lejos.hardware.Button;
 import lejos.hardware.motor.EV3LargeRegulatedMotor;
 import lejos.hardware.motor.UnregulatedMotor;
@@ -27,6 +31,8 @@ class EV3Motor
    // Definición de parámetros del robot
    public static final float diameter_wheel = 58f; 					// Diametro de las ruedas (mm). 
    public static final float radio_wheel = diameter_wheel/2000f;		// Radio de las ruedas (m)
+   private float position = 0f;
+   private float last_position = 0f;
    
    // Filtro
    private FourthOrderFilter filterwheelspeed;
@@ -35,6 +41,12 @@ class EV3Motor
    private float sin_x = 0.0f;
    private final float sin_speed = 0.1f;
    private final float sin_amp = 20.0f;
+   
+	/**
+	 * Datalloger
+	 * Indicar que dato se guardarán
+	 */
+	PrintWriter motorlog = null;
 
    /**
     * MotorController constructor.
@@ -55,6 +67,20 @@ class EV3Motor
       Button.LEDPattern(0);
       
       filterwheelspeed = new FourthOrderFilter();
+      
+		// erase array
+		for (int i = 0; i < max_index; i++) {
+			enc_val [i] = 0;
+		}
+      
+  	/**
+  	 * Datalloger
+  	 * Indicar que dato se guardarán
+  	 */
+      if (Segway.MOTORLOG)
+	      try {motorlog = new PrintWriter("dataMotor.txt", "UTF-8");}
+	      catch (FileNotFoundException e1) {e1.printStackTrace();}
+	      catch (UnsupportedEncodingException e1) {e1.printStackTrace();}
    }
 
    /**
@@ -119,14 +145,46 @@ class EV3Motor
    
    
    /**
-    * getPosition devuelve la velocidad de las ruedas en m.
+    * getSpeed devuelve la velocidad media de ambos motores.
     * 
-    * @return a float con el valor de la velocidad.
+    * @return a float con el valor medio de la velocidad de las ruedas 
     * 
     */
-   public float getRobotSpeed()
-   {  /* REVISAR QUITAR O DEJAR FILTRO */
-      return 0;// filterwheelspeed.filtrate(((float)leftMotor.getSpeed() + (float)rightMotor.getSpeed()) * (Math.toRadians(1) * radio_wheel / 2));
+   
+	private static final int max_index = 7;
+	float[] enc_val = new float[max_index];
+	int enc_index = 0;
+	
+   public float getSpeed(){
+	   
+	   float speed_raw = 0f; 
+	   
+	   speed_raw = (position - last_position) / ((float)Stabilizer.dt/1000f);
+	   
+	   enc_index++;
+
+		if (max_index <= enc_index)
+			enc_index = 0;
+
+		int compare_index = enc_index + 1;
+		if (max_index <= compare_index)
+			compare_index = 0;
+
+		enc_val[enc_index] = (leftMotor.getTachoCount() /*+ rightMotor.getTachoCount() )/2.0f */) ;
+					//System.out.println (enc_val [enc_index] + " " + enc_val[compare_index] + " " + max_index + " " + Stabilizer.dt);
+					System.out.println(speed_raw);
+					
+		  if (Segway.MOTORLOG)
+		  motorlog.println(","+speed_raw+","+((enc_val [enc_index] - enc_val [compare_index]) / (max_index * Stabilizer.dt/1000)	));
+
+		
+		
+		return ((enc_val [enc_index] - enc_val [compare_index]) / (max_index * Stabilizer.dt/1000)	);
+	   
+	   
+	   /* REVISAR QUITAR O DEJAR FILTRO */
+	   
+    //  return 0f;// filterwheelspeed.filtrate(((float)leftMotor.getSpeed() + (float)rightMotor.getSpeed()) * (Math.toRadians(1) * radio_wheel / 2));
     		  
    }
    
@@ -135,9 +193,18 @@ class EV3Motor
     * 
     * @return a float con la posición de las ruedas.
     */
-   public float getRobotPosition()
-   {
-      return (leftMotor.getTachoCount() + rightMotor.getTachoCount()) * ( (float) Math.toRadians(1) * radio_wheel / 2f);
+   public float getPosition(){
+	   
+	   last_position = position;
+	   
+	   position = (leftMotor.getTachoCount() + rightMotor.getTachoCount()) * ( (float) Math.toRadians(1) * radio_wheel / 2f);
+	   
+	   if (Segway.MOTORDB)
+		   System.out.println ("ML "+leftMotor.getTachoCount()+" MR " + rightMotor.getTachoCount());
+	   if (Segway.MOTORLOG)
+		   motorlog.print(position);
+
+	   return position;
    }
    
    /**
@@ -145,9 +212,8 @@ class EV3Motor
     * 
     * @return a float con la posición del motor derecho.
     */
-   public float getRightAngle()
-   {
-      return (float) rightMotor.getTachoCount();
+   public float getRightAngle(){
+	   return (float) rightMotor.getTachoCount();
    }
    
    
@@ -188,5 +254,10 @@ class EV3Motor
       leftMotor.flt();
       rightMotor.flt();
    }
+   
+   public void logClose(){
+	   motorlog.close();
+   }
+	
    
 }
