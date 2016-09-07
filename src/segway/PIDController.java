@@ -3,7 +3,7 @@ package segway;
 import lejos.utility.Delay;
 
 public class PIDController {
-
+	
     /**
      * Proportional term ID
      * @see #setPIDParam
@@ -116,12 +116,19 @@ public class PIDController {
      * @see #doPID
      */
     public static final int PID_PV = 12;
+    
+    /**
+     * Intregration sample term ID
+     * @see #setPIDParam
+     * @see #getPIDParam
+     */
+    public static final int PID_DT = 13;
 
     // Our default Constants for the PID controller 
     private float Kp=1.0f;          		// proportional value determines the reaction to the current error
     private float Ki=0.0f;     				// integral value determines the reaction based on the sum of recent errors
     private float Kd=0.0f;       			// derivative value determines the reaction based on the rate at which the error has been changing
-    private int highLimit = 900;            // assuming control of motor speed and thereby max would be 900 deg/sec
+    private int highLimit = 100;            // assuming control of motor speed and thereby max would be 900 deg/sec
     private int lowLimit = -highLimit;
     private double previous_error = 0;
     private int deadband = 0;
@@ -208,6 +215,9 @@ public class PIDController {
                 this.integralHighLimit = (int)value;
                 this.integralLimited = (this.integralHighLimit!=0);
                 break; 
+            case PIDController.PID_DT:
+                this.dt = (int)value;
+                break;     
             default:
                 return;
         }
@@ -300,10 +310,12 @@ public class PIDController {
         int delay=0;
         this.PV = processVariable;
         
+        /*
         if (this.cycleTime==0) {
             this.cycleTime = System.currentTimeMillis();
             return 0;
         }
+        */
         error = setpoint - processVariable;
         error = Math.abs(error)<=deadband?0:error;
         if (!disableIntegral) integral += Ki * error * dt; 
@@ -320,7 +332,7 @@ public class PIDController {
         previous_error = error;
         outputMV=rampOut(outputMV);
 
-       
+       /*
         // delay the difference of desired cycle time and actual cycle time
         if (this.msdelay>0) {
             delay = this.msdelay-((int)(System.currentTimeMillis() - this.cycleTime)); // desired cycle time minus actual time
@@ -328,11 +340,11 @@ public class PIDController {
                 Delay.msDelay(delay);
             }
         }
-
+        */
         cycleCount++;
         // global time it took to get back to this statement
-        dt = (double)(System.currentTimeMillis() - this.cycleTime)/1000;
-        this.cycleTime = System.currentTimeMillis();
+        //dt = (double)(System.currentTimeMillis() - this.cycleTime)/1000;
+        //this.cycleTime = System.currentTimeMillis();
         return outputMV;
     }
 

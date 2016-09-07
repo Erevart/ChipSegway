@@ -1,5 +1,6 @@
 package segway;
 
+import java.beans.Encoder;
 import java.io.*;
 
 import lejos.hardware.BrickFinder;
@@ -14,6 +15,7 @@ import lejos.hardware.port.MotorPort;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.port.TachoMotorPort;
 import lejos.hardware.sensor.EV3GyroSensor;
+import lejos.robotics.EncoderMotor;
 import lejos.robotics.SampleProvider;
 import lejos.utility.Delay;
 
@@ -26,13 +28,15 @@ public class Segway {
 	 * Dataloggers
 	 */
 	public static boolean GYROLOG = false;
-	public static boolean MOTORLOG = true;
+	public static boolean MOTORLOG = false;
+	public static boolean STABILIZERLOG = true;
 	
 	/**
 	 * Debug
 	 */
 	public static boolean GYRODB = false;
 	public static boolean MOTORDB = false;
+	public static boolean STABILIZERDB = false;
 	
 	
 	public static boolean SOUND = true;	// Indica si se activan los pitidos.
@@ -43,8 +47,7 @@ public class Segway {
 		EV3 chip = (EV3) BrickFinder.getDefault();
 		TextLCD lcd = chip.getTextLCD();     
 		Keys keys = chip.getKeys();
-		
-		gyroboy = new Stabilizer(chip,SensorPort.S3,chip.getPort("D"),chip.getPort("A"));
+		gyroboy = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("A"));
 		gyroboy.start();
 		
 		/*
@@ -63,6 +66,7 @@ public class Segway {
 		writer.close();	
 		*/
 		
+		
 		int i = 0;
 		while (true){
 			if (i++ > 8)
@@ -71,13 +75,13 @@ public class Segway {
 	//		Button.LEDPattern(i);
 			
 			/* Para debug */
-			/*
+			
 			lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
-			lcd.drawString("Angulo: "+ 57*gyroboy.getStabilizerAngle()+ "     ", 1, 3);
+			lcd.drawString("Angulo: "+ gyroboy.getStabilizerAngle()+ "     ", 1, 3);
+			lcd.drawString("Gyro: "+ gyroboy.getStabilizerRateAngle()+ "     ", 1, 5);
 			
 			lcd.drawString("Var i "+ i+ "   ", 1, 6);
-			*/
-			
+
 			if (Button.ESCAPE.isDown()){
 				break;
 			}
