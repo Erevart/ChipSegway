@@ -2,23 +2,33 @@ package segway;
 
 /**
  * Filtro IIR para el filtrado de señales digitales y analgícos.
- * Parámetros obtenidos a partir de la función "cheby2(4,60,12.5/50)" de Matlab.
+ * Parámetros obtenidos a partir de la función "cheby2" de Matlab.
  * @author Erevart -- José Emilio Traver
  *
  */
 public class FourthOrderFilter {
-
 	
-	final private double _b0 = 0.001893594048567;
-	final private double _b1 = -0.002220262954039;
-	final private double _b2 = 0.003389066536478;
-	final private double _b3 = -0.002220262954039;
-	final private double _b4 = 0.001893594048567;
-	  
-	final private double _a1 = -3.362256889209355;
-	final private double _a2 = 4.282608240117919;
-	final private double _a3 = -2.444765517272841;
-	final private double _a4 = 0.527149895089809;
+	/** 
+	 * Selecciona los parámetros del filtro IIR para una frecuencia de corte 
+	 * de 12.5 Hz, para una frecuencia de muestreo de 100 Hz. "cheby2(4,60,12.5/50)"
+	 **/
+	public static final int CUTOFF_12 = 0;
+	
+	/** 
+	 * Selecciona los parámetros del filtro IIR para una frecuencia de corte 
+	 * de 22.5 Hz, para una frecuencia de muestreo de 100 Hz. "cheby2(4,60,22.5/50)"
+	 **/
+	public static final int CUTOFF_22 = 1;
+	
+	
+	// cheby2(4,60,12.5/50)
+	final private double CUTOFF_12_b[] = {0.001893594048567, -0.002220262954039, 0.003389066536478, -0.002220262954039, 0.001893594048567};
+	final private double CUTOFF_12_a[] = {-3.362256889209355, 4.282608240117919, -2.444765517272841, 0.527149895089809};
+	
+	// cheby2(4,80,22.5/50)
+	final private double CUTOFF_22_b[] = {0.005756353346780, 0.006760424571151 , 0.010311233686422,0.006760424571151,0.005756353346780};
+	final private double CUTOFF_22_a[] = {-2.709225974919292,2.899883100028628,-1.424647249159285,0.269334913572232};
+	
 	
 	// cheby2(4,80,7.5/50)
 	/*
@@ -36,30 +46,33 @@ public class FourthOrderFilter {
 	
 	/* Variables de entrada para el diseño del filtro */
 	private double inputbuffer[] = new double[4];
+	private double coeff_b[] = new double[5];
 	
 	/* Variables de salida para el diseño del filtro */
 	private double outputbuffer[] = new double[4];
+	private double coeff_a[] = new double[5];
 	
 	/**
 	 * Constructor
 	 */	
-	public FourthOrderFilter(){
+	public FourthOrderFilter(int type_filter){
 		reset();
+		setparam(type_filter);
 	}
 	
 	public float filtrate(float data){
 		
 		 float output;
 		  
-		  output = (float) (_b0 * data   + 
-		           _b1 * inputbuffer[0]  + 
-		           _b2 * inputbuffer[1]  +
-		           _b3 * inputbuffer[2]  +
-		           _b4 * inputbuffer[3]  -
-		           _a1 * outputbuffer[0] -
-		           _a2 * outputbuffer[1] -
-		           _a3 * outputbuffer[2] -
-		           _a4 * outputbuffer[3]);
+		  output = (float) (coeff_b[0] * data   + 
+				   coeff_b[1] * inputbuffer[0]  + 
+		           coeff_b[2] * inputbuffer[1]  +
+		           coeff_b[3] * inputbuffer[2]  +
+		           coeff_b[4] * inputbuffer[3]  -
+		           coeff_a[0] * outputbuffer[0] -
+		           coeff_a[1] * outputbuffer[1] -
+		           coeff_a[2] * outputbuffer[2] -
+		           coeff_a[3] * outputbuffer[3]);
 
            inputbuffer[3] = inputbuffer[2];
            inputbuffer[2] = inputbuffer[1];
@@ -78,15 +91,15 @@ public class FourthOrderFilter {
 		
 		  double output;
 		  
-		  output = _b0 * data   + 
-		           _b1 * inputbuffer[0]  + 
-		           _b2 * inputbuffer[1]  +
-		           _b3 * inputbuffer[2]  +
-		           _b4 * inputbuffer[3]  -
-		           _a1 * outputbuffer[0] -
-		           _a2 * outputbuffer[1] -
-		           _a3 * outputbuffer[2] -
-		           _a4 * outputbuffer[3];
+		  output = coeff_b[0] * data   + 
+				   coeff_b[1] * inputbuffer[0]  + 
+		           coeff_b[2] * inputbuffer[1]  +
+		           coeff_b[3] * inputbuffer[2]  +
+		           coeff_b[4] * inputbuffer[3]  -
+		           coeff_a[0] * outputbuffer[0] -
+		           coeff_a[1] * outputbuffer[1] -
+		           coeff_a[2] * outputbuffer[2] -
+		           coeff_a[3] * outputbuffer[3];
 
           inputbuffer[3] = inputbuffer[2];
           inputbuffer[2] = inputbuffer[1];
@@ -99,6 +112,25 @@ public class FourthOrderFilter {
           outputbuffer[0] = output;
 		    
 		  return output;
+	}
+	
+	private void setparam(int type_filter){
+		
+		switch(type_filter){
+		
+			case CUTOFF_12:
+				coeff_b = CUTOFF_12_b;
+				coeff_a = CUTOFF_12_a;						
+			break;
+			
+			case CUTOFF_22:
+				coeff_b = CUTOFF_22_b;
+				coeff_a = CUTOFF_22_a;
+			break;
+			
+			default:
+			break;			
+		}
 	}
 	
 	public void reset(){
