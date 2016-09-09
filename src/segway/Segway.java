@@ -2,6 +2,8 @@ package segway;
 
 import java.beans.Encoder;
 import java.io.*;
+import java.net.*;
+import java.rmi.*;
 
 import lejos.hardware.BrickFinder;
 import lejos.hardware.Button;
@@ -15,6 +17,7 @@ import lejos.hardware.port.MotorPort;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.port.TachoMotorPort;
 import lejos.hardware.sensor.EV3GyroSensor;
+import lejos.remote.ev3.RemoteEV3;
 import lejos.robotics.EncoderMotor;
 import lejos.robotics.SampleProvider;
 import lejos.utility.Delay;
@@ -30,6 +33,7 @@ public class Segway {
 	public static boolean GYROLOG = false;
 	public static boolean MOTORLOG = false;
 	public static boolean STABILIZERLOG = true;
+	public static boolean WIFILOG = true;
 	
 	/**
 	 * Debug
@@ -37,37 +41,47 @@ public class Segway {
 	public static boolean GYRODB = false;
 	public static boolean MOTORDB = false;
 	public static boolean STABILIZERDB = false;
+	public static boolean WIFILOGDB = true;
+		
+	
+	/**
+	 * DataLogWifi
+	 */
+	private static DataLoggerWifi wifilog = null;
 	
 	
+	/**
+	 * Complementos de funcionamiento
+	 */
 	public static boolean SOUND = true;	// Indica si se activan los pitidos.
 	
+	/**
+	 * Clases 
+	 */
 	public static Stabilizer gyroboy;
 	
-	public static void main(String[] args) {		
-		EV3 chip = (EV3) BrickFinder.getDefault();
-		TextLCD lcd = chip.getTextLCD();     
-		Keys keys = chip.getKeys();
+	
+	public static void main(String[] args){
+		
+		// 
+		EV3 chip = (EV3) BrickFinder.getDefault();	
+		
+		// LCD
+		TextLCD lcd = chip.getTextLCD();    
+		
+		// 	Control de estabilidad
 		gyroboy = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("A"));
-		gyroboy.start();
+    	gyroboy.start();
 		
-		/*
-		PrintWriter writer = null;
-		try {
-			writer = new PrintWriter("the-file-name.txt", "UTF-8");
-		} catch (FileNotFoundException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		} catch (UnsupportedEncodingException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		writer.println("The first line");
-		writer.println("The second line");
-		writer.close();	
-		*/
+		// Servidor TCP
+		if (WIFILOG){
+			wifilog = new DataLoggerWifi();
+			wifilog.start();
+		} 
+
 		
-		
-		int i = 0;
+       
+		double i = 0;
 		while (true){
 			if (i++ > 8)
 				i = 0;
@@ -75,24 +89,38 @@ public class Segway {
 	//		Button.LEDPattern(i);
 			
 			/* Para debug */
-			
+			/*
 			lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
 			lcd.drawString("Angulo: "+ gyroboy.getStabilizerAngle()+ "     ", 1, 3);
 			lcd.drawString("Gyro: "+ gyroboy.getStabilizerRateAngle()+ "     ", 1, 5);
 			
 			lcd.drawString("Var i "+ i+ "   ", 1, 6);
-
+			*/
+			
+			Button.LEDPattern((int) i);
+			if (WIFILOG){
+				wifilog.setDataLog('A', gyroboy.getStabilizerAngle());
+			}
+			
 			if (Button.ESCAPE.isDown()){
 				break;
 			}
 
-			try {Thread.sleep(50);} catch (InterruptedException e) { e.printStackTrace();}
+			try {Thread.sleep(40);} catch (InterruptedException e) { e.printStackTrace();}
 		}
+		
+		
+		
+		// Cierre de todas las comunicaciones
+		if (WIFILOG)
+			wifilog.close();
+		
 		System.out.println("Fuera");
 		gyroboy.setStateStabilizer(true);
 		
 		return;
 			
 	}
+
 
 }

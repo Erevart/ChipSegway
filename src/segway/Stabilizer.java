@@ -26,7 +26,7 @@ import segway.EV3Gyro;
  * @author José Emilio Traver
  *
  */
-public final class Stabilizer {
+public class Stabilizer {
 		
 	// Sintonización variables del controlador 
 	private final float falling_down = (float) (30f); // Umbral de inclinación a partir de cual no se ejecuta el controlador. 
@@ -352,7 +352,8 @@ public final class Stabilizer {
 		private StabilizerThread() {
 			super(); 
 		}
-	
+		
+		@Override
 		public void run () {
 			
 			long stabilizerTime = 0;
