@@ -97,10 +97,10 @@ public class EV3Gyro {
 		// Método de calibración descrito por Lego®.
 		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
 		gyro.setCurrentMode("Rate");
-		gyro.setCurrentMode("Angle");
+/*		gyro.setCurrentMode("Angle");
 		try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		gyro.setCurrentMode("Rate");
-		try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
+*/		try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
 		while(!(getRawGyro() >= 0 || getRawGyro() < 0))
 			try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		
@@ -122,10 +122,9 @@ public class EV3Gyro {
 		if (Math.abs( (float) ( getRawGyro() - angle_rate_offset ) ) >= max_diff_calibration){
 			// Indicar que hay que mantener quieto al robot
 			// Poner cara de gruñon.
-			
+	
 			System.out.println("No te muevas");
 			Button.LEDPattern(5);
-			
 		}
 
 		/**
@@ -147,7 +146,7 @@ public class EV3Gyro {
 	
 	public double getRateAngle(){
 		
-		angle_rate = filtergyro.filtrate(getRawGyro()-angle_rate_offset);	
+	//	angle_rate = filtergyro.filtrate(getRawGyro()-angle_rate_offset);	
 		
 		/**
 		 * Datalogg
@@ -155,7 +154,8 @@ public class EV3Gyro {
 		if (Segway.GYROLOG) 
 			gyrolog.print(angle_rate_offset+","+angle_rate+","+ (getRawGyro()-angle_rate_offset) );
 		
-		return angle_rate;
+		//return angle_rate;
+		return getRawGyro();
 	}
 	
 	/*
@@ -165,6 +165,9 @@ public class EV3Gyro {
 	public double getAngle(){
 		
 		angle = angle +  angle_rate * (double) (Stabilizer.dt/1000);
+		
+       // angle = angle + (double) (Stabilizer.dt/1000) 
+       // 		* (angle_rate[0] + 2*angle_rate[1] + 2*angle_rate[2] + angle_rate[3])/6;
 		
 		// 0.017 = 1 deg
 		//if ((angle > -0.09f) && (angle < 0.09f) )
@@ -183,10 +186,10 @@ public class EV3Gyro {
 		
 		float[] raw_gyro = new float[1];
 
-		gyro.fetchSample(raw_gyro, 0);
+		gyro.getRateMode().fetchSample(raw_gyro, 0);
 		
-		if (raw_gyro[0] > -0.2 && raw_gyro[0] < 0.2)
-			return 0;
+	//	if (raw_gyro[0] > -0.2 && raw_gyro[0] < 0.2)
+	//		return 0;
 		
 				
 		/**

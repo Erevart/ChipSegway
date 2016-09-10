@@ -25,23 +25,21 @@ public class DataLoggerWifi extends Thread  {
 	private DataOutputStream transmit_data = null;
 	private LinkedList<Integer> buffertype_data;
 	private LinkedList<Double> bufferdata;
-
-
 	
 	// Mutex - Lock
-	private Lock lock_log;
+	private Lock lock_logdata;
+	private Lock lock_logstatus;
 	
 	// Flag
 	private boolean isClient = false;
 	private boolean isServer = false;
 	
-	// 
-	private Object data = null;
 	
 	public DataLoggerWifi(){
 
 		/* Atributos de permiso y acceso */
-		lock_log = new ReentrantLock();
+		lock_logdata = new ReentrantLock();
+		lock_logstatus = new ReentrantLock();
 		
 		/* Inicialización de atributos */
 		setServerStatus(true);
@@ -51,9 +49,8 @@ public class DataLoggerWifi extends Thread  {
 		
 	}
 	
-	private void sendData(int type_data, double data ){
-		
-			
+	private void sendData(char type_data, double data ){
+				
 		if (!getClientStatus())
 			return;
 				       
@@ -98,7 +95,7 @@ public class DataLoggerWifi extends Thread  {
 			transmit_data.writeChar(data);
 		} catch (IOException e) {
 			if (Segway.WIFILOGDB)
-				System.out.println("No conexión con el servidor");
+				System.out.println("W:No conexión con el servidor");
 			setClientStatus(false);
 			return;
 		}
@@ -107,28 +104,25 @@ public class DataLoggerWifi extends Thread  {
 	
 	private char receivedChar(){
 		
+		//sendChar('@');
+		
 		if (!getClientStatus())
 			return 0;
 		
-		long timestamp = 0;
+		long time = 0;
 		char datain[] = new char[1];
 		
-		sendChar('@');
-		
 		try {
-			/*
-			// Si pasados 10s no se recibe respuesta se lanza un error.
-			timestamp = System.currentTimeMillis();
+			// Si pasados 5s no se recibe respuesta se lanza un error.
+			time = System.currentTimeMillis();
 			while (!received_data.ready()){
-				if ((System.currentTimeMillis() - timestamp) > 5000)
+				if ((System.currentTimeMillis() - time) > 5000)
 					 throw new IOException();
 			}
-			*/
-			sendChar('@');
 			received_data.read(datain);
 		} catch (IOException e) {
 			if (Segway.WIFILOGDB)
-				System.out.println("No hay respuesta del servidor");
+				System.out.println("R:No hay respuesta del servidor");
 			setClientStatus(false);
 			return 0;
 		}
@@ -138,23 +132,25 @@ public class DataLoggerWifi extends Thread  {
 	}
 	
 	public void close(){
+		setClientStatus(false);
 		setServerStatus(false);
+		try {if (!socket.isClosed()) socket.close();} catch (IOException e) {}
 	}
 	
 	
 	private void setClientStatus(boolean status){
 		
-		lock_log.lock();
+		lock_logstatus.lock();
 		isClient = status;
-		lock_log.unlock();
+		lock_logstatus.unlock();
 		
 	}
 	
 	private boolean getClientStatus(){
 		
-		lock_log.lock();
+		lock_logstatus.lock();
 		boolean _isClient = isClient;
-		lock_log.unlock();
+		lock_logstatus.unlock();
 		
 		return _isClient;
 		
@@ -163,17 +159,17 @@ public class DataLoggerWifi extends Thread  {
 	
 	private void setServerStatus(boolean status){
 		
-		lock_log.lock();
+		lock_logstatus.lock();
 		isServer = status;
-		lock_log.unlock();
+		lock_logstatus.unlock();
 		
 	}
 	
 	private boolean getServerStatus(){
 		
-		lock_log.lock();
+		lock_logstatus.lock();
 		boolean _isServer = isServer;
-		lock_log.unlock();
+		lock_logstatus.unlock();
 		
 		return _isServer;
 		
@@ -184,14 +180,13 @@ public class DataLoggerWifi extends Thread  {
 		if (!getClientStatus())
 			return;
 		
-		lock_log.lock();
+		lock_logdata.lock();
 		buffertype_data.add(new Integer (type_data));
 		bufferdata.add(new Double (data));
 		
 		datacounter++;
-		lock_log.unlock();
-		
 		System.out.println(datacounter);
+		lock_logdata.unlock();
 	}
 	
 	@Override
@@ -201,9 +196,9 @@ public class DataLoggerWifi extends Thread  {
 		Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
 		
 		int _datacounter = 0;
-		int _type_data; 
-		double _data;
-		double i = 0;
+		int _type_data = 'A';
+		double _data = 0;
+		double i =0;
 		
 		try {
 			serversocket = new ServerSocket(PORT);
@@ -214,35 +209,37 @@ public class DataLoggerWifi extends Thread  {
 				if (Segway.WIFILOGDB)
 					 System.out.println("Conexion establecida");	 
 				setClientStatus(true);
+				/*
+				 * Loop 50 Hz 
+				 */
 				while(getClientStatus()){
 					
-					lock_log.lock();
-					_datacounter = datacounter;
-					lock_log.unlock();
-					
-					if (receivedChar() == '$' && _datacounter != 0){
-					//	sendDouble(_datacounter);
-					//	for (int i = 0; i < _datacounter; i++){
-							lock_log.lock();
+					if (receivedChar() == '$'){ 
+						lock_logdata.lock();
+						_datacounter = datacounter;
+						if (datacounter != 0){
 							_type_data = buffertype_data.removeFirst();
 							_data = bufferdata.removeFirst();
-							lock_log.unlock();
-							
+							datacounter-- ;
+						}
+						lock_logdata.unlock();
+						if (_datacounter != 0)
 							sendData((char)_type_data,_data);
-					//	}
-						lock_log.lock();
-					//	datacounter -= _datacounter;
-						datacounter-- ;
-						lock_log.unlock();
+						else 
+							sendData((char)'!',0);
 					}		
 					
-					try {Thread.sleep(30);} catch (InterruptedException e) {e.printStackTrace();}
+					try {Thread.sleep(20);} catch (InterruptedException e) {e.printStackTrace();}
 				 }
+				buffertype_data.clear();
+				bufferdata.clear();
+				datacounter = 0;
 				if (Segway.WIFILOGDB)
 					 System.out.println("Cliente desconectado");
 				 transmit_data.close();
 				 received_data.close();
-				 socket.close();
+				 if (!socket.isClosed())
+					 socket.close();
 				 
 			 }while(getServerStatus());			 
 			 serversocket.close();

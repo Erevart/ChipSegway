@@ -118,13 +118,12 @@ class EV3Motor{
    //   if (pwr>EV3Motor.MAX_POWER) pwr=EV3Motor.MAX_POWER;
    //   if (pwr<EV3Motor.MIN_POWER) pwr=EV3Motor.MIN_POWER;
       
-      rightMotor.setPower(Math.abs(pwr));
       if (pwr < 0) {
          rightMotor.backward();
-         rightMotor.setPower(Math.abs(pwr));
+         rightMotor.setPower(-pwr);
       } else if (pwr > 0) {
          rightMotor.forward();
-         rightMotor.setPower(Math.abs(pwr));
+         rightMotor.setPower(pwr);
       } else {
          rightMotor.stop();
       }
@@ -153,7 +152,7 @@ class EV3Motor{
 	   double speed_raw = 0f;
 	   double speed = 0f;
 	   
-	   speed_raw = /* RADIO_WHEEL **/ (position - last_position) / ((double)Stabilizer.dt/1000f);
+	   speed_raw =  RADIO_WHEEL * (position - last_position) / ((double)Stabilizer.dt/1000f);
 	   
 	   speed = filterwheelspeed.filtrate(speed_raw);
 	   

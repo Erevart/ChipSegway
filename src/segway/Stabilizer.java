@@ -27,10 +27,19 @@ import segway.EV3Gyro;
  *
  */
 public class Stabilizer {
+	
+	/*
+	 * Constantes
+	 */
+	private static final int LOOP_50Hz = 2;
+	private static final int SLOWEST_LOOP = 2*LOOP_50Hz;
+	
+	private final float FALLING_DOWN = (float) (30f); // Umbral de inclinación a partir de cual no se ejecuta el controlador. 
 		
-	// Sintonización variables del controlador 
-	private final float falling_down = (float) (30f); // Umbral de inclinación a partir de cual no se ejecuta el controlador. 
 	public static final double dt = 20; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+
+	
+	// Sintonización variables del controlador 	
 	private final double kp = 0.5;		// Ganancia proporcional
 	private final double ki = 11;			// Ganancia integral
 	private final double kd = 0.005;		// Ganancia derivativa
@@ -44,7 +53,13 @@ public class Stabilizer {
 	private double last_dTerm = 0;
 	private double error = 0;
 	private double refpos = 0;
-	private boolean stateStabilizer = false;
+	
+	/**
+	 * Indica el estado del robot. 
+	 * @true El robot se encuentra desactivado (se ha caído).
+	 * @false El robot se encuentra activado (está estabilizado).
+	 */
+	private boolean stateStabilizer = false;	
 	
 	// Ponderación de las variables del sistema (Variables Lego)
 	private double Kpsidot = 1.3; // Ganancia de velocidad angular. 
@@ -356,6 +371,7 @@ public class Stabilizer {
 		@Override
 		public void run () {
 			
+			int count_scheduler = 0;	// Variable de planificación
 			long stabilizerTime = 0;
 			double power_motors = 0;
 			double turns_power_motors = 0;
@@ -364,28 +380,34 @@ public class Stabilizer {
 			long last_time = System.currentTimeMillis();
 			
 			
+			/*
+			 * Loop 100 Hz (Tiempo comprobado entre XX - XX ms)
+			 */
 			while(Button.ESCAPE.isUp()) {
 				// Código a ejecutar de forma concurrente
 				// Determinar condicion para salir del bucle cuando el robot se cae
+			
+				stabilizerTime = System.currentTimeMillis();
+				//lcd.drawString("Tiempo" + (stabilizerTime - last_time) + "   ", 1, 1);
+				last_time = stabilizerTime;
+				//ctrl.setUpright(true);
+	            // runDriveState();
+	            
+				// Actualización variables del sistema.
+				updateVariableState();
 				
-					
-					stabilizerTime = System.currentTimeMillis();
-					//lcd.drawString("Tiempo" + (stabilizerTime - last_time) + "   ", 1, 1);
-					last_time = stabilizerTime;
-					//ctrl.setUpright(true);
-		            // runDriveState();
-		            
-					// Actualización variables del sistema.
-					updateVariableState();
-					
+				/*
+				 * Loop 50 Hz (Tiempo comprobado entre XX - XX ms)
+				 */
+		//		if ((count_scheduler % LOOP_50Hz) == 0){
 					// Ponderación de las variables de estado.
 					updateWeighingLQR();
 					
 					// Controlador
 					// refspeed += getSpeed() * (dt/1000) * 0.002
 					// motorcontroller.setPIDParam(PIDController.PID_SETPOINT, refspeed);
-
-
+	
+	
 					power_motors = updateController(error);
 					//turns_power_motors = getSteering();
 					power_rightmotor = (power_motors + turns_power_motors) * (0.021f / EV3Motor.RADIO_WHEEL);
@@ -394,17 +416,16 @@ public class Stabilizer {
 					if (Segway.STABILIZERLOG) 
 						stabilizerlog.println(","+power_rightmotor+","+power_leftmotor);
 					            
-					if(Math.abs(Psi) < falling_down && !getStateStabilizer()){
+					if(Math.abs(Psi) < FALLING_DOWN && !getStateStabilizer()){
 			            //motors.setPower(pw + ctrl.leftMotorOffset(), pw + ctrl.rightMotorOffset());
-						motors.setPower(power_leftmotor,power_rightmotor);
+					//	motors.setPower(power_leftmotor,power_rightmotor);
 					//	System.out.println(power_motors);
 			            //motors.setPower(power_motors, power_motors);
-						Button.LEDPattern(1);
-					}
+										}
 					else {
 						motors.stop();
 						setStateStabilizer(true);
-						if  (Math.abs(Psi) > falling_down && getStateStabilizer()){
+						if  (Math.abs(Psi) > FALLING_DOWN && getStateStabilizer()){
 							// Se enfada al caerse
 							Button.LEDPattern(8);
 						}
@@ -415,23 +436,26 @@ public class Stabilizer {
 							resetController();
 						}
 					}
-					
-					//lcd.drawInt((int)power_leftmotor, 2, 7);
-					//lcd.drawInt((int)power_rightmotor, 7, 7);
-					
-					// Se añade 2 ms más para garantizar el tiempo del bucle.
-					delay = 2 + (int) ( System.currentTimeMillis()-stabilizerTime ) ;
-					
-					// Revisar delay2 eliminar
-					int delay2 =0;
-					if (delay >= dt)
-						delay2 = (int) dt;
-					else
-						delay2 = (int) (dt - delay);
-						            
-		            // Delay used to stop Gyro being read to quickly. May need to be increase or
-		            // decreased depending on leJOS version.
-					try {Thread.sleep(delay2);} catch (Exception e) {}
+		//		}
+				//lcd.drawInt((int)power_leftmotor, 2, 7);
+				//lcd.drawInt((int)power_rightmotor, 7, 7);
+				
+				if (count_scheduler++ > SLOWEST_LOOP)
+					count_scheduler = 0;
+				
+				// Se añade 2 ms más para garantizar el tiempo del bucle.
+				delay = 2 + (int) ( System.currentTimeMillis()-stabilizerTime ) ;
+				
+				// Revisar delay2 eliminar
+				int delay2 =0;
+				if (delay >= dt)
+					delay2 = (int) dt;
+				else
+					delay2 = (int) (dt - delay);
+					            
+	            // Delay used to stop Gyro being read to quickly. May need to be increase or
+	            // decreased depending on leJOS version.
+				try {Thread.sleep(delay2);} catch (Exception e) {}
 									
 			}
 			

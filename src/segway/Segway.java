@@ -32,7 +32,7 @@ public class Segway {
 	 */
 	public static boolean GYROLOG = false;
 	public static boolean MOTORLOG = false;
-	public static boolean STABILIZERLOG = true;
+	public static boolean STABILIZERLOG = false;
 	public static boolean WIFILOG = true;
 	
 	/**
@@ -41,9 +41,13 @@ public class Segway {
 	public static boolean GYRODB = false;
 	public static boolean MOTORDB = false;
 	public static boolean STABILIZERDB = false;
-	public static boolean WIFILOGDB = true;
-		
+	public static boolean WIFILOGDB = false;
 	
+	/**
+	 * Constantes
+	 */
+	private static final int LOOP_8Hz = 3;
+	private static final int SLOWEST_LOOP = 2*LOOP_8Hz;
 	/**
 	 * DataLogWifi
 	 */
@@ -63,7 +67,10 @@ public class Segway {
 	
 	public static void main(String[] args){
 		
-		// 
+		// Declaración de variables
+		int count_scheduler = 0;
+		
+		// Declaración de llamadas a objetos.
 		EV3 chip = (EV3) BrickFinder.getDefault();	
 		
 		// LCD
@@ -73,38 +80,59 @@ public class Segway {
 		gyroboy = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("A"));
     	gyroboy.start();
 		
-		// Servidor TCP
+		// DataLoggerWifi
 		if (WIFILOG){
 			wifilog = new DataLoggerWifi();
 			wifilog.start();
 		} 
-
 		
-       
 		double i = 0;
+		/*
+		 * Loop 25 Hz (Tiempo comprobado entre 42 - 52 ms)
+		 */
 		while (true){
+			
 			if (i++ > 8)
 				i = 0;
-			
-	//		Button.LEDPattern(i);
-			
+	//		lcd.drawString("               " ,1, 5);
+	//		lcd.drawInt((int) (t-t2), 8, 5);
+	//		lcd.drawString("Tiempo" ,1, 5);
+					
 			/* Para debug */
-			/*
+			
 			lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
 			lcd.drawString("Angulo: "+ gyroboy.getStabilizerAngle()+ "     ", 1, 3);
-			lcd.drawString("Gyro: "+ gyroboy.getStabilizerRateAngle()+ "     ", 1, 5);
+		/*	lcd.drawString("Gyro: "+ gyroboy.getStabilizerRateAngle()+ "     ", 1, 5);
 			
 			lcd.drawString("Var i "+ i+ "   ", 1, 6);
-			*/
+		*/
 			
 			Button.LEDPattern((int) i);
-			if (WIFILOG){
-				wifilog.setDataLog('A', gyroboy.getStabilizerAngle());
+			
+			/*
+			 * Loop 8.3 Hz (Tiempo comprobado entre XX - XX ms)
+			 */
+			if ((count_scheduler % LOOP_8Hz) == 0){
+				if (WIFILOG){
+					wifilog.setDataLog('A', gyroboy.getStabilizerAngle());
+					wifilog.setDataLog('G', gyroboy.getStabilizerRateAngle());
+					wifilog.setDataLog('P', gyroboy.getStabilizerPosition());
+					wifilog.setDataLog('V', gyroboy.getStabilizerSpeed());/*
+					wifilog.setDataLog('L', gyroboy.getStabilizerAngle());
+					wifilog.setDataLog('R', gyroboy.getStabilizerAngle());
+					wifilog.setDataLog('C', gyroboy.getStabilizerAngle());
+					wifilog.setDataLog('R', gyroboy.getStabilizerAngle());
+					wifilog.setDataLog('I', gyroboy.getStabilizerAngle());
+					wifilog.setDataLog('D', gyroboy.getStabilizerAngle());*/
+				}
 			}
 			
 			if (Button.ESCAPE.isDown()){
 				break;
 			}
+			
+			if (count_scheduler++ > SLOWEST_LOOP)
+				count_scheduler = 0;
 
 			try {Thread.sleep(40);} catch (InterruptedException e) { e.printStackTrace();}
 		}
@@ -113,6 +141,7 @@ public class Segway {
 		
 		// Cierre de todas las comunicaciones
 		if (WIFILOG)
+			wifilog.setDataLog('#',0);
 			wifilog.close();
 		
 		System.out.println("Fuera");
