@@ -33,18 +33,18 @@ class EV3Motor{
    private EncoderMotor rightMotor;
 	
    // Definición de parámetros del robot
-   public static final double DIAMETER_WHEEL = 56f; 					// Diametro de las ruedas (mm). 
-   public static final double RADIO_WHEEL = DIAMETER_WHEEL/2000f;		// Radio de las ruedas (m)
-   private double position = 0f;
-   private double last_position = 0f;
+   public static final float DIAMETER_WHEEL = 56f; 					// Diametro de las ruedas (mm). 
+   public static final float RADIO_WHEEL = DIAMETER_WHEEL/2000f;		// Radio de las ruedas (m)
+   private float position = 0f;
+   private float last_position = 0f;
    
    // Filtro
    private FourthOrderFilter filterwheelspeed;
    
    // Sinusoidal parameters used to smooth motors
-   private double sin_x = 0.0f;
-   private final double sin_speed = 0.1f;
-   private final double sin_amp = 10.0f;
+   private float sin_x = 0.0f;
+   private final float sin_speed = 0.1f;
+   private final float sin_amp = 5.0f;
    
 	/**
 	 * Datalloger
@@ -77,7 +77,8 @@ class EV3Motor{
   	 * Indicar que dato se guardarán
   	 */
       if (Segway.MOTORLOG)
-	      try {motorlog = new PrintWriter("dataMotor.txt", "UTF-8");}
+	      try {motorlog = new PrintWriter("dataMotor.txt", "UTF-8");
+	      motorlog.println("position,speed_raw,speed");}
 	      catch (FileNotFoundException e1) {e1.printStackTrace();}
 	      catch (UnsupportedEncodingException e1) {e1.printStackTrace();}
    }
@@ -88,15 +89,15 @@ class EV3Motor{
     * motors over time from moving forwards and backwards constantly.
     * 
     * @param leftPower
-    *           A double used to set the power of the left motor. Maximum value depends on
+    *           A float used to set the power of the left motor. Maximum value depends on
     *           battery level but is approximately 815. A negative value results in motors
     *           reversing.
     * @param rightPower
-    *           A double used to set the power of the right motor. Maximum value depends on
+    *           A float used to set the power of the right motor. Maximum value depends on
     *           battery level but is approximately 815. A negative value results in motors
     *           reversing.
     */
-   public void setPower(double leftPower, double rightPower)
+   public void setPower(int leftPower, int rightPower)
    {
       sin_x += sin_speed;
       int pwl = (int) (leftPower);// - Math.sin(sin_x) * sin_amp);
@@ -132,29 +133,32 @@ class EV3Motor{
    /**
     * getAngle returns the average motor angle of the left and right motors
     * 
-    * @return A double of the average motor angle of the left and right motors in degrees.
+    * @return A float of the average motor angle of the left and right motors in degrees.
     */
-   public double getAngle()
+   public float getAngle()
    {
-      return (double) (leftMotor.getTachoCount() + rightMotor.getTachoCount() ) / 2.0f;
+      return (float) (leftMotor.getTachoCount() + rightMotor.getTachoCount() ) / 2.0f;
    }
 
    
    /**
     * getSpeed devuelve la velocidad media de ambos motores.
     * 
-    * @return un double con el valor medio de la velocidad de las ruedas 
+    * @return un float con el valor medio de la velocidad de las ruedas 
     * 
     */
    
-   public double getSpeed(){
+   public float getSpeed(){
 	   
-	   double speed_raw = 0f;
-	   double speed = 0f;
+	   float speed_raw = 0f;
+	   float speed = 0f;
 	   
-	   speed_raw =  RADIO_WHEEL * (position - last_position) / ((double)Stabilizer.dt/1000f);
+	   speed_raw =  (position - last_position) / ((float)Stabilizer.dt/1000f);
 	   
-	   speed = filterwheelspeed.filtrate(speed_raw);
+	   last_position = position;
+	   
+	   //speed = filterwheelspeed.filtrate(speed_raw);
+	   speed = speed_raw;
 	   
 	   if (Segway.MOTORLOG)
 		   motorlog.println(","+speed_raw+","+speed);
@@ -166,13 +170,11 @@ class EV3Motor{
    /**
     * getRobotPosition devuele la posición de los motores calculada a partir de los encoders en m. 
     * 
-    * @return a double con la posición de las ruedas.
+    * @return a float con la posición de las ruedas.
     */
-   public double getPosition(){
+   public float getPosition(){
 	   
-	   last_position = position;
-	   
-	   position = (leftMotor.getTachoCount() + rightMotor.getTachoCount()) * ( (double) Math.toRadians(1) * RADIO_WHEEL / 2f);
+	   position = (leftMotor.getTachoCount() + rightMotor.getTachoCount()) * ( (float) Math.toRadians(1) * RADIO_WHEEL / 2f);
 	   
 	   if (Segway.MOTORDB)
 		   System.out.println ("ML "+leftMotor.getTachoCount()+" MR " + rightMotor.getTachoCount());
@@ -185,21 +187,21 @@ class EV3Motor{
    /**
     * getRightAngle devuelve la posición del motor derecho en grados.
     * 
-    * @return a double con la posición del motor derecho.
+    * @return a float con la posición del motor derecho.
     */
-   public double getRightAngle(){
-	   return (double) rightMotor.getTachoCount();
+   public float getRightAngle(){
+	   return (float) rightMotor.getTachoCount();
    }
    
    
    /**
     * getLeftAngle devuelve la posición del motor izquierdo en grados.
     * 
-    * @return a double con la posición del motor izquierdo.
+    * @return a float con la posición del motor izquierdo.
     */
-   public double getLeftAngle()
+   public float getLeftAngle()
    {
-      return (double) leftMotor.getTachoCount();
+      return (float) leftMotor.getTachoCount();
    }
    
 
@@ -222,7 +224,7 @@ class EV3Motor{
    }
    
    /**
-    * double stop both motors from rotating
+    * float stop both motors from rotating
     */
    public void flt()
    {

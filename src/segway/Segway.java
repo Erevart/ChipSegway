@@ -30,10 +30,10 @@ public class Segway {
 	/**
 	 * Dataloggers
 	 */
-	public static boolean GYROLOG = false;
+	public static boolean GYROLOG = true;
 	public static boolean MOTORLOG = false;
-	public static boolean STABILIZERLOG = false;
-	public static boolean WIFILOG = true;
+	public static boolean STABILIZERLOG = true;
+	public static boolean WIFILOG = false;
 	
 	/**
 	 * Debug
@@ -46,8 +46,8 @@ public class Segway {
 	/**
 	 * Constantes
 	 */
-	private static final int LOOP_8Hz = 3;
-	private static final int SLOWEST_LOOP = 2*LOOP_8Hz;
+	private static final int LOOP_12Hz = 2;
+	private static final int SLOWEST_LOOP = 2*LOOP_12Hz;
 	/**
 	 * DataLogWifi
 	 */
@@ -77,7 +77,8 @@ public class Segway {
 		TextLCD lcd = chip.getTextLCD();    
 		
 		// 	Control de estabilidad
-		gyroboy = new Stabilizer(chip,SensorPort.S2,chip.getPort("D"),chip.getPort("A"));
+		gyroboy = new Stabilizer(SensorPort.S2,chip.getPort("D"),chip.getPort("A"));
+		gyroboy.setStateStabilizer(true);
     	gyroboy.start();
 		
 		// DataLoggerWifi
@@ -86,7 +87,13 @@ public class Segway {
 			wifilog.start();
 		} 
 		
-		double i = 0;
+		// Espera a la estabilización de variables y sensores
+		try {Thread.sleep(800);} catch (InterruptedException e) { e.printStackTrace();}
+		
+		// Se inicia el controal
+		gyroboy.setStateStabilizer(true);
+		
+		float i = 0;
 		/*
 		 * Loop 25 Hz (Tiempo comprobado entre 42 - 52 ms)
 		 */
@@ -100,8 +107,8 @@ public class Segway {
 					
 			/* Para debug */
 			
-			lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
-			lcd.drawString("Angulo: "+ gyroboy.getStabilizerAngle()+ "     ", 1, 3);
+		//	lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
+		//	lcd.drawString("Angulo: "+ gyroboy.getStabilizerAngle()+ "     ", 1, 3);
 		/*	lcd.drawString("Gyro: "+ gyroboy.getStabilizerRateAngle()+ "     ", 1, 5);
 			
 			lcd.drawString("Var i "+ i+ "   ", 1, 6);
@@ -110,9 +117,9 @@ public class Segway {
 			Button.LEDPattern((int) i);
 			
 			/*
-			 * Loop 8.3 Hz (Tiempo comprobado entre XX - XX ms)
+			 * Loop 12.5 Hz (Tiempo comprobado entre XX - XX ms)
 			 */
-			if ((count_scheduler % LOOP_8Hz) == 0){
+			if ((count_scheduler % LOOP_12Hz) == 0){
 				if (WIFILOG){
 					wifilog.setDataLog('A', gyroboy.getStabilizerAngle());
 					wifilog.setDataLog('G', gyroboy.getStabilizerRateAngle());
@@ -140,12 +147,14 @@ public class Segway {
 		
 		
 		// Cierre de todas las comunicaciones
-		if (WIFILOG)
+		if (WIFILOG){
 			wifilog.setDataLog('#',0);
 			wifilog.close();
+			wifilog.stop();
+		}
 		
 		System.out.println("Fuera");
-		gyroboy.setStateStabilizer(true);
+		gyroboy.setStateStabilizer(false);
 		
 		return;
 			
