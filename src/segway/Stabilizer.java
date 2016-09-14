@@ -34,7 +34,18 @@ public class Stabilizer {
 	/*
 	 * Constantes
 	 */
-	private final float FALLING_DOWN = (float) (30f); // Umbral de inclinación a partir de cual no se ejecuta el controlador. 		
+	
+	/**
+	 *  Umbral de inclinación a partir de cual no se ejecuta el controlador. 
+	 */
+	private final float FALLING_DOWN = (float) (30f); 
+	
+	/** 
+	 * If robot power is saturated (over +/- 100) for over this time limit then 
+	 * robot must have fallen.  In milliseconds.
+	 */
+	private static final double TIME_FALL_LIMIT = 400; // originally 1000
+	
 	public static final float dt = 5f; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
 
 	
@@ -45,7 +56,9 @@ public class Stabilizer {
 	private final int sample_calibration = 500;
 	private final double max_diff_calibration = 0.5;
 	
+	private double angle = 0;
 	private double angle_rate_offset = 0;
+	private double filter_angle_rate = 0;
 	
 	//=====================================================================
 	// Parámetros y Variables de los Motores
@@ -57,6 +70,9 @@ public class Stabilizer {
 	private long speedwheels = 0;
 	private long positionwheels_diff = 0;
 	private long last_positionwheel = 0;
+	private long positiondelta1 = 0;
+	private long positiondelta2 = 0;
+	private long positiondelta3 = 0;
 	
 	//=====================================================================
 	// Constantes controlador PID de estabilidad 
@@ -65,6 +81,9 @@ public class Stabilizer {
 	private final double ki = 11;		// Ganancia integral
 	private final double kd = 0.005;	// Ganancia derivativa
 	private final double ktau = 0;		// Ganancia Anti-Windup
+	
+	private double ref_position = 0;
+	private double ref_speed = 0;
 	
 	//=====================================================================
 	// Ponderación LQR de las variables del sistema (Variables Lego)
@@ -201,16 +220,13 @@ public class Stabilizer {
 		// Método de calibración descrito por Lego®.
 		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
 		gyro.setCurrentMode("Rate");
-		gyro.setCurrentMode("Angle");
-		
+		gyro.setCurrentMode(2);		
 		try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
-		gyro.setCurrentMode("Rate");
-		try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
-		
-		while(!(getRawGyro() >= 0 || getRawGyro() < 0))
+
+		while(!(angle >= 0 || angle < 0))
 			try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		
-					
+		/*			
 		// Se inicializa el giroscopio. Se calcula su valor de offset.
 		do{
 		
@@ -234,14 +250,14 @@ public class Stabilizer {
 
 		/**
 		 *  DEBUG
-		 */
+		 *
 		if (Segway.GYRODB)
 			System.out.println("Gyro offset: "+ angle_rate_offset);
 		
 		
 		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
 		
-	
+		*/
 	}
 	
 	
@@ -252,15 +268,30 @@ public class Stabilizer {
 	 */
 	private double getRawGyro(){
 		
-		float[] raw_gyro = new float[1];
+		float[] raw_gyro = new float[2];
 		double _filter_raw_gyro = 0;
+
 		
-		for (int i = 0; i < sample_filter_raw; i++){
-			gyro.getRateMode().fetchSample(raw_gyro, 0);
-			_filter_raw_gyro += (double) raw_gyro[0];
-		}
+	//	for (int i = 0; i < sample_filter_raw; i++){
+			gyro.getAngleAndRateMode().fetchSample(raw_gyro, 0);
+	//		_filter_raw_gyro += (double) raw_gyro[0];
+	//	}
 		
-		_filter_raw_gyro /= sample_filter_raw;
+	//	_filter_raw_gyro /= sample_filter_raw;
+		
+	/*	// EMA
+		filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((getRawGyro()-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
+		_angle_rate  = (getRawGyro()-angle_rate_offset) - filter_angle_rate;
+		
+		angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
+	*/
+		angle = raw_gyro[0];
+		/**
+		 * Datalog
+		 */
+	//	if (Segway.GYROLOG) 
+	//		gyrolog.print(angle_rate_offset+","+_angle_rate+","+ (getRawGyro()-angle_rate_offset) );
+		
 		
 		/**
 		 *  DEBUG
@@ -269,7 +300,31 @@ public class Stabilizer {
 			System.out.println("GYRO: "+ _filter_raw_gyro );
 		}
 		
-		return (float) -_filter_raw_gyro;
+		//return _filter_raw_gyro;
+		return -raw_gyro[1];
+	}
+	
+	/**
+	 * Calcula en ángulo de inclinación y devuelve la velocidad de giro.
+	 * @return _angle_rate (rad/s). Velocidad de giro.
+	 */
+	private double getRateAngle(){
+		
+		double _angle_rate =0;
+				
+		// EMA
+		filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((getRawGyro()-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
+		_angle_rate  = (getRawGyro()-angle_rate_offset) - filter_angle_rate;
+		
+		angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
+		
+		/**
+		 * Datalog
+		 */
+	//	if (Segway.GYROLOG) 
+	//		gyrolog.print(angle_rate_offset+","+_angle_rate+","+ (getRawGyro()-angle_rate_offset) );
+		
+		return _angle_rate;
 	}
 	
    /**
@@ -281,33 +336,37 @@ public class Stabilizer {
       rightMotor.stop();
    }
    
-   private void updateMotorData(){
+   /**
+    * Calcula la velocidad de las ruedas y devuelve el desplazamiento.   
+    * @return positionwheels (m). Desplazamiento de las ruedas.
+    */
+   private double getPositionWheel(){
 	   
-	   long _position_leftmotor,_position_rightmotor, _position;
+	   long _position_leftmotor,_position_rightmotor, _position = 0, _positiondelta ;
 	   
 	   _position_leftmotor = leftMotor.getTachoCount();
 	   _position_rightmotor = rightMotor.getTachoCount();
 	      
 		// Maintain previous mrcSum so that delta can be calculated and get
 		// new mrcSum and Diff values
-		last_positionwheel = _position;
-		_position = (_position_leftmotor + _position_rightmotor) * ( (float) Math.toRadians(1) * RADIO_WHEEL / 2f);;
-		motorDiff = _position_leftmotor - _position_rightmotor;
+		_position = _position_leftmotor + _position_rightmotor;
+		positionwheels_diff = _position_leftmotor - _position_rightmotor;
 
 		// mrcDetla is the change int sum of the motor encoders, update
 		// motorPos based on this detla
-		mrcDelta = mrcSum - mrcSumPrev;
-		motorPos += mrcDelta;
-
+		_positiondelta = _position - last_positionwheel;
+		positionwheels += _positiondelta * ( Math.toRadians(1) * RADIO_WHEEL / 2f);
+		last_positionwheel = _position;
+		
 		// motorSpeed is based on the average of the last four delta's.
-		motorSpeed = (mrcDelta+mrcDeltaP1+mrcDeltaP2+mrcDeltaP3)/(4*tInterval);
+		//speedwheels = RADIO_WHEEL * (_positiondelta+positiondelta1+positiondelta2+positiondelta3)/(4*tInterval);
 
 		// Shift the latest mrcDelta into the previous three saved delta values
-		mrcDeltaP3 = mrcDeltaP2;
-		mrcDeltaP2 = mrcDeltaP1;
-		mrcDeltaP1 = mrcDelta;
-	   
-	   
+		positiondelta3 = positiondelta2;
+		positiondelta2 = positiondelta1;
+		positiondelta1 = _positiondelta;
+		
+		return positionwheels;
 	   
    }
 	
@@ -322,8 +381,7 @@ public class Stabilizer {
 		PsiDot = getRawGyro();
         Psi = angle;
         
-        // ctrl.tiltAngle() is used to drive the robot forwards and backwards
-        Phi =  positionwheels;
+        Phi =  getPositionWheel();
         PhiDot = speedwheels;
         
         lock_stabilizer.unlock();
@@ -332,18 +390,16 @@ public class Stabilizer {
 		 * Datalogg
 		 */
 		if (Segway.STABILIZERLOG) 
-			stabilizerlog.print(PsiDot+","+Psi+","+Phi+","+PhiDot);
-		
-        
+			stabilizerlog.print(PsiDot+","+Psi+","+Phi+","+PhiDot);     
         
 	}
 	
 	/*
 	 * Devuelve la velocidad de avance de las ruedas.
 	 */
-	public float getStabilizerSpeed(){
+	public double getStabilizerSpeed(){
 		
-		float PhiDot = 0f;
+		double PhiDot = 0;
 		
 		lock_stabilizer.lock();
         PhiDot = this.PhiDot;
@@ -357,9 +413,9 @@ public class Stabilizer {
 	/*
 	 * Devuelve el ángulo de giro de las ruedas.
 	 */
-	public float getStabilizerPosition(){
+	public double getStabilizerPosition(){
 		
-		float Phi = 0f;
+		double Phi = 0;
 		
 		lock_stabilizer.lock();
         Phi = this.Phi;
@@ -372,9 +428,9 @@ public class Stabilizer {
 	/*
 	 * Devuelve el valor de la velocidad de inclinación del robot.
 	 */
-	public float getStabilizerRateAngle(){
+	public double getStabilizerRateAngle(){
 		
-		float PsiDot = 0f;
+		double PsiDot = 0;
 		
 		lock_stabilizer.lock();
         PsiDot = this.PsiDot;
@@ -387,9 +443,9 @@ public class Stabilizer {
 	/*
 	 * Devuelve el valor del angulo de inclinación del robot.
 	 */
-	public float getStabilizerAngle(){
+	public double getStabilizerAngle(){
 		
-		float Psi = 0f;
+		double Psi = 0;
 		
 		lock_stabilizer.lock();
         Psi = this.Psi;
@@ -399,70 +455,27 @@ public class Stabilizer {
         
 	}
 	
-	/*
+	/**
 	 * Se pondera el valor de las variables de estado del sistema a partir 
 	 * de los pesos proprocionado por el algoritmo de optimización LQR.
+	 * @return devuelve el error a corregir para estabilizar el sistema.
 	 */
-	private void updateWeighingLQR(){
+	private double updateWeighingLQR(){
 		
-		float _speed = getSpeed();
-		// refpos += getSpeed();
-		refpos = refpos + (dt/1000 * _speed * 0.002f); // Lego
+		double _speed = getSpeed();
+
+		ref_position += (dt/1000 * _speed * 0.002f); // Lego
 		
 		// No es necesario negar los valores de Psi y PsiDot, debido a la ubicación física
 		// del sensor que proporciona las variable medida del signo contrario a la referencia.
-		error =
-				Kpsi * Psi +
+		return 	Kpsi * Psi +
 				Kpsidot * PsiDot +
-				Kphi *  ( refpos - Phi ) +
-				Kphidot * (_speed- PhiDot );
+				Kphi *  ( ref_position - Phi ) +
+				Kphidot * (_speed - PhiDot );
 		
 	}
-	
-	private float updateController(float error){
 		
-		float derivate_error =  0f;
-		float control_action = 0f;
-
-		
-		/* Acción integral */
-		// Error integral
-		integrated_error += error * (dt/1000);
-				
-		derivate_error = (error - past_error) / (dt/1000);
-		past_error = error;
-		
-	//	derivate_error = last_dTerm + 0.556864f  * (derivate_error - last_dTerm);
-		
-	//	last_dTerm = derivate_error;
-		
-		control_action = error * kp + integrated_error * ki	+ derivate_error * kd;
-		
-		/* Control anti-Windup */
-		if (control_action > EV3Motor.MAX_POWER){
-			integrated_error += (EV3Motor.MAX_POWER - control_action) * ktau;
-			control_action = EV3Motor.MAX_POWER;
-		} else if (control_action < EV3Motor.MIN_POWER){
-			integrated_error += (EV3Motor.MIN_POWER - control_action) * ktau;
-			control_action = EV3Motor.MIN_POWER;
-		}
-		
-		if (Segway.STABILIZERLOG) 
-			stabilizerlog.print(","+error+","+integrated_error+","+derivate_error+","+control_action);
-		
-		return  control_action;
-	}
-	
-	private void resetController(){
-	
-		integrated_error = 0f;
-		past_error = 0f;		
-		last_dTerm = 0f;
-				
-		return;
-	}
-	
-	public boolean getStateStabilizer(){
+		public boolean getStateStabilizer(){
 		
 		boolean stateStabilizer;
 		
@@ -496,38 +509,40 @@ public class Stabilizer {
 		lock_drivecontrol.unlock();
 	}
 	
-	private float getSpeed(){
+	private double getSpeed(){
 		
-		float _speed = 0f;
+		double _speed = 0f;
 		
 		lock_drivecontrol.lock();
-		_speed = speed;
+		_speed = ref_speed;
 		lock_drivecontrol.unlock();
 		
 		return _speed;
 	}
 	
 	
-	private float getSteering(){
+	private double getSteering(){
 		// Posible lock
 		// limit steering: [-50, 50]
-		float new_steering = 0f;
+		double new_steering = 0;
 		
 		// Se actualiza el valor de la variable global de la clase a la local del método.
 		lock_drivecontrol.lock();
 		new_steering = this.steering;
 		lock_drivecontrol.unlock();
 		
+		
 		if (new_steering == 0){
 		
 			if (old_steering != 0)
-					steering_sync = motors.getRightAngle() - motors.getLeftAngle();
-			new_steering = (motors.getRightAngle() - motors.getLeftAngle() - steering_sync) * 0.05f;
+					steering_sync = positionwheels_diff;
+			new_steering = (positionwheels_diff - steering_sync) * 0.05f;
 			return new_steering;
 			
 		}
 		else {
 			old_steering = new_steering;
+			// Tener en cuenta la diferencia ya presente en las ruedas
 			steering = (new_steering > 50)?50:new_steering;
 			steering = (new_steering < -50)?-50:new_steering;
 			return -steering / 2;
@@ -546,6 +561,8 @@ public class Stabilizer {
 	 * Definición del hilo mediante interface de Runnable
 	 *
 	 */
+	
+	public long delay = 0;
 	private class StabilizerThread implements Runnable { 
 	
 		private StabilizerThread() {
@@ -562,15 +579,18 @@ public class Stabilizer {
 			double past_error = 0;
 			double last_dTerm = 0;
 			double error = 0;
-			double refpos = 0;
+			
+			double derivate_error =  0;
+			double u_control = 0;
+
 			
 			
-			long stabilizerTime = 0;
-			float power_motors = 0;
-			float turns_power_motors = 0;
+			long stabilizertime = 0;
+			long time_motorspeedOK = 0;
+			double power_motors = 0;
+			double turns_power_motors = 0;
 			int power_rightmotor = 0;
 			int power_leftmotor = 0;
-			long delay = 0;
 			
 			
 			/*
@@ -580,7 +600,7 @@ public class Stabilizer {
 				// Código a ejecutar de forma concurrente
 				// Determinar condicion para salir del bucle cuando el robot se cae
 			
-				stabilizerTime = System.currentTimeMillis();
+				stabilizertime = System.currentTimeMillis();
 				
 				//ctrl.setUpright(true);
 	            // runDriveState();
@@ -588,70 +608,78 @@ public class Stabilizer {
 				// Actualización variables del sistema.
 				updateVariableState();
 				
-					// Ponderación de las variables de estado.
-					updateWeighingLQR();
-					
-					// Controlador
-					// refspeed += getSpeed() * (dt/1000) * 0.002
-					// motorcontroller.setPIDParam(PIDController.PID_SETPOINT, refspeed);
-	
-					power_motors = updateController(error);
-					turns_power_motors = getSteering();
-					power_rightmotor = (int) ((power_motors - turns_power_motors) * (0.021f / EV3Motor.RADIO_WHEEL));
-					power_leftmotor = (int) ((power_motors + turns_power_motors) * (0.021f / EV3Motor.RADIO_WHEEL));
-									
-					
-					if(Math.abs(Psi) < FALLING_DOWN && getStateStabilizer()){
-			        	motors.setPower(power_leftmotor,power_rightmotor);
-					//	System.out.println(power_motors);
-			        //motors.setPower(power_motors, power_motors);
-					}
-					else {
-						motors.stop();
-						setStateStabilizer(false);
-						if  (Math.abs(Psi) > FALLING_DOWN && !getStateStabilizer()){
-							// Se enfada al caerse
-							Button.LEDPattern(8);
-						}
-						if (Button.UP.isDown()){
-							setStateStabilizer(true);
-							gyro.reset();
-							motors.resetMotors();
-							resetController();
-						}
-					}
-					
-				}
-					
+				// Ponderación de las variables de estado.
+				error = updateWeighingLQR();
+				
+				/* Controlador */
+				integrated_error += error * (dt/1000);		
+				derivate_error = (error - past_error) / (dt/1000);
+				past_error = error;			
+				//derivate_error = last_dTerm + 0.556864f  * (derivate_error - last_dTerm);
+				//last_dTerm = derivate_error;
+				power_motors = error * kp + integrated_error * ki	+ derivate_error * kd;
+				turns_power_motors = getSteering();
+				
+				// Apply the power steering value with the main power value to
+				// get the left and right power values.
+				power_rightmotor = (int) ((power_motors + turns_power_motors) * (0.021f / EV3Motor.RADIO_WHEEL));
+				power_leftmotor = (int) ((power_motors - turns_power_motors) * (0.021f / EV3Motor.RADIO_WHEEL));
+				
+				if (Math.abs(power_rightmotor) < 100)
+					time_motorspeedOK = stabilizertime;
+				
+				
+				// Limit the power to motor power range -100 to 100
+				if (power_rightmotor > 100)   power_rightmotor = 100;
+				if (power_rightmotor < -100)  power_rightmotor = -100;
 
-				// Se añade 2 ms más para garantizar el tiempo del bucle.
-				delay = ( System.currentTimeMillis()-stabilizerTime ) ;
+				// Limit the power to motor power range -100 to 100
+				if (power_leftmotor > 100)  power_leftmotor = 100;
+				if (power_leftmotor < -100) power_leftmotor = -100;
+					
+				/* Potencia motores */
+				leftMotor.setPower(Math.abs(power_leftmotor));
+				rightMotor.setPower(Math.abs(power_rightmotor));
 				
-				if (Segway.STABILIZERLOG) 
-					stabilizerlog.println(","+power_rightmotor+","+power_leftmotor+","+delay);
-			
+				if (power_leftmotor < 0) leftMotor.backward();
+				else leftMotor.forward();
+		       
+				if (power_rightmotor < 0)  rightMotor.backward(); 
+				else rightMotor.forward();
+
+				// Check if robot has fallen by detecting that motorPos is being limited
+				// for an extended amount of time.
+				if ((System.currentTimeMillis() - time_motorspeedOK) > TIME_FALL_LIMIT || Math.abs(Psi) > FALLING_DOWN) break;
 				
-				// Revisar delay2 eliminar
-				long delay2 = 0;
-				if (delay >= dt)
-					delay2 = (int) dt;
-				else
-					delay2 = (int) (dt - delay);
-					            
-	            // Delay used to stop Gyro being read to quickly. May need to be increase or
-	            // decreased depending on leJOS version.
-				try {Thread.sleep(delay2);} catch (Exception e) {}
-									
+				System.out.println((double)(System.currentTimeMillis()-stabilizertime));
+				
+				// Delay used to stop Gyro being read to quickly. May need to be increase or
+		        // decreased depending on leJOS version.
+				try {Thread.sleep((int)dt/1000);} catch (Exception e) {}
 			}
 			
-			// Se cierra la comunicación con los sensores y actuadores.
-			motors.stop();
-			//gyro.close();
+			leftMotor.flt();
+			rightMotor.flt();
+			setStateStabilizer(false);
 			
-			if (Segway.GYROLOG) gyro.logClose();
+			// Se enfada al caerse
+			Button.LEDPattern(8);
+	
+			// Se añade 2 ms más para garantizar el tiempo del bucle.
+			delay = ( System.currentTimeMillis()-stabilizertime ) ;
+			
+			if (Segway.STABILIZERLOG) 
+				stabilizerlog.println(","+power_rightmotor+","+power_leftmotor+","+delay);
+		
+
+			
+			// Se cierra la comunicación con los sensores y actuadores.
+			gyro.close();
+			
+		/*	if (Segway.GYROLOG) gyro.logClose();
 			if (Segway.MOTORLOG) motors.logClose();
 			if (Segway.STABILIZERLOG) logClose();
-			
+		*/	
 		}
 	}
 	
