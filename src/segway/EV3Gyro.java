@@ -154,11 +154,11 @@ public class EV3Gyro /* extends UARTSensor */ {
 	public float getRateAngle(){
 		
 		//angle_rate = filtergyro.filtrate(getRawGyro()-angle_rate_offset);
-		//angle_rate = getRawGyro()-angle_rate_offset;
+		angle_rate = getRawGyro()-angle_rate_offset;
 		
 		// EMA
-		mean = mean * (1f - 0.2f * Stabilizer.dt/1000f) + ((getRawGyro()-angle_rate_offset) * 0.2f * Stabilizer.dt/1000f);
-		angle_rate  = getRawGyro()-angle_rate_offset - mean;
+//		mean = mean * (1f - 0.2f * Stabilizer.dt/1000f) + ((getRawGyro()-angle_rate_offset) * 0.2f * Stabilizer.dt/1000f);
+//		angle_rate  = getRawGyro()-angle_rate_offset - mean;
 		
 	//	angle_rate = angle_rate * (0.8f) + (angle_rate * 0.2f);
 		
@@ -242,9 +242,9 @@ public class EV3Gyro /* extends UARTSensor */ {
 	   gyrolog.close();
    }
    
-//   public void close(){
-//	   gyro.close();
-//   }
+   public void close(){
+	   gyro.close();
+   }
 	
 
 }

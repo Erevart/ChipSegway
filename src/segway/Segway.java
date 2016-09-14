@@ -119,6 +119,7 @@ public class Segway {
 			/*
 			 * Loop 12.5 Hz (Tiempo comprobado entre XX - XX ms)
 			 */
+			/*
 			if ((count_scheduler % LOOP_12Hz) == 0){
 				if (WIFILOG){
 					wifilog.setDataLog('A', gyroboy.getStabilizerAngle());
@@ -130,10 +131,10 @@ public class Segway {
 					wifilog.setDataLog('C', gyroboy.getStabilizerAngle());
 					wifilog.setDataLog('R', gyroboy.getStabilizerAngle());
 					wifilog.setDataLog('I', gyroboy.getStabilizerAngle());
-					wifilog.setDataLog('D', gyroboy.getStabilizerAngle());*/
+					wifilog.setDataLog('D', gyroboy.getStabilizerAngle());*
 				}
 			}
-			
+			*/
 			if (Button.ESCAPE.isDown()){
 				break;
 			}
