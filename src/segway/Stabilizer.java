@@ -42,7 +42,7 @@ public class Stabilizer {
 	 */
 	private static final double TIME_FALL_LIMIT = 1000; // originally 1000
 	
-	public static final int dt = 5; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+	public static final int dt = 20; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
 
 	
 	//=====================================================================
@@ -75,7 +75,7 @@ public class Stabilizer {
 	//=====================================================================	
 	private final double kp = 0.5;		// Ganancia proporcional
 	private final double ki = 11;		// Ganancia integral
-	private final double kd = 0.0005;	// Ganancia derivativa
+	private final double kd = 0.005;	// Ganancia derivativa
 	
 	private double ref_speed = 0;
 	
@@ -201,7 +201,7 @@ public class Stabilizer {
 				
 		// Método de calibración descrito por Lego®.
 		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
-		gyro.setCurrentMode(1);	
+		gyro.setCurrentMode("Rate");	
 	/*	try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		gyro.setCurrentMode("Rate");
 	*/	try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
@@ -255,7 +255,7 @@ public class Stabilizer {
 		
 		for (int i = 0; i < sample_filter_raw; i++){
 		//	gyro.getAngleAndRateMode().fetchSample(raw_gyro, 0);
-			gyro.fetchSample(raw_gyro, 0);
+			gyro.getRateMode().fetchSample(raw_gyro, 0);
 			_filter_raw_gyro += (double) raw_gyro[0];
 		}
 		
@@ -263,7 +263,7 @@ public class Stabilizer {
 		
 		// EMA
 	//	filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((_filter_raw_gyro-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
-		_angle_rate  = (_filter_raw_gyro-angle_rate_offset) - filter_angle_rate;
+		_angle_rate  = (_filter_raw_gyro-angle_rate_offset);
 		
 		angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
 	
@@ -530,8 +530,6 @@ public class Stabilizer {
 			
 			long time_motorspeedOK = 0;
 			double ref_position = 0;
-			double speed = 0;
-			
 			//=====================================================================
 			// Variables controlador PID
 			//=====================================================================
@@ -589,7 +587,7 @@ public class Stabilizer {
 				past_error = error;			
 				//derivate_error = last_dTerm + 0.556864f  * (derivate_error - last_dTerm);
 				//last_dTerm = derivate_error;
-				power_motors = error * kp + integrated_error * ki	+ derivate_error * kd;
+				power_motors = error * kp + integrated_error * ki + derivate_error * kd;
 				turns_power_motors = getSteering();
 				//turns_power_motors = getSteering();
 				
@@ -614,14 +612,26 @@ public class Stabilizer {
 				leftMotor.setPower(Math.abs(power_leftmotor));
 				rightMotor.setPower(Math.abs(power_rightmotor));
 				
-				if (power_leftmotor < 0) leftMotor.backward();
-				else leftMotor.forward();
+				if (power_leftmotor < 0){ 
+					leftMotor.setPower(-power_leftmotor);
+					leftMotor.backward();
+				}
+				else{
+					leftMotor.setPower(power_leftmotor);
+					leftMotor.forward();
+				}
 		       
-				if (power_rightmotor < 0)  rightMotor.backward(); 
-				else rightMotor.forward();
+				if (power_rightmotor < 0){
+					rightMotor.setPower(-power_rightmotor);
+					rightMotor.backward(); 
+				}
+				else{
+					rightMotor.setPower(power_rightmotor);
+					rightMotor.forward();
+				}
 
 				//System.out.println((double)(System.currentTimeMillis() - stabilizerTime));
-				System.out.println("G: "+ PhiDot+"A: "+ Phi);
+				System.out.println("A: "+ Psi);
 				
 				
 				// Check if robot has fallen by detecting that motorPos is being limited
