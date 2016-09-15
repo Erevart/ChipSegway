@@ -201,16 +201,15 @@ public class Stabilizer {
 				
 		// Método de calibración descrito por Lego®.
 		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
-		gyro.setCurrentMode("Rate");
-		gyro.setCurrentMode(2);	
+		gyro.setCurrentMode(1);	
 	/*	try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		gyro.setCurrentMode("Rate");
-		try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
-	*/	while(!(angle >= 0 || angle < 0))
+	*/	try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
+		while(!(getRawGyro() >= 0 || getRawGyro() < 0))
 			try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		
 				
-	/*	// Se inicializa el giroscopio. Se calcula su valor de offset.
+		// Se inicializa el giroscopio. Se calcula su valor de offset.
 		do{
 		
 		angle_rate_offset = 0;	
@@ -223,7 +222,7 @@ public class Stabilizer {
 		
 		angle_rate_offset /= sample_calibration;
 		
-		if (Math.abs( (float) ( getRawGyro() - angle_rate_offset ) ) >= max_diff_calibration){
+		if (Math.abs( (float) ( getRawGyro() ) ) >= max_diff_calibration){
 			// Indicar que hay que mantener quieto al robot
 			// Poner cara de gruñon.
 	
@@ -232,14 +231,14 @@ public class Stabilizer {
 		}
 		/**
 		 *  DEBUG
-		 *
+		 */
 		if (Segway.GYRODB)
 			System.out.println("Gyro offset: "+ angle_rate_offset);
 		
 		
 		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
 		
-	*/	
+	
 	}
 	
 	/**
@@ -249,26 +248,26 @@ public class Stabilizer {
 	 */
 	private double getRawGyro(){
 		
-		float[] raw_gyro = new float[2];
+		float[] raw_gyro = new float[1];
 		double _filter_raw_gyro = 0;
 		double _angle_rate = 0;
 
 		
-//		for (int i = 0; i < sample_filter_raw; i++){
-			gyro.getAngleAndRateMode().fetchSample(raw_gyro, 0);
-		//	gyro.getRateMode().fetchSample(raw_gyro, 0);
-//			_filter_raw_gyro -= (double) raw_gyro[0];
-//		}
+		for (int i = 0; i < sample_filter_raw; i++){
+		//	gyro.getAngleAndRateMode().fetchSample(raw_gyro, 0);
+			gyro.fetchSample(raw_gyro, 0);
+			_filter_raw_gyro += (double) raw_gyro[0];
+		}
 		
-		//_filter_raw_gyro /= sample_filter_raw;
+		_filter_raw_gyro /= sample_filter_raw;
 		
 		// EMA
 	//	filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((_filter_raw_gyro-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
-	//	_angle_rate  = (_filter_raw_gyro-angle_rate_offset) - filter_angle_rate;
+		_angle_rate  = (_filter_raw_gyro-angle_rate_offset) - filter_angle_rate;
 		
-	//	angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
+		angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
 	
-		angle = raw_gyro[0];
+	//	angle = raw_gyro[0];
 		/**
 		 * Datalog
 		 */
@@ -283,8 +282,8 @@ public class Stabilizer {
 			System.out.println("GYRO: "+ _filter_raw_gyro );
 		}
 		
-		//return _angle_rate;
-		return raw_gyro[1];
+		return _angle_rate;
+		//return raw_gyro[1];
 	}
 	
 	/**
@@ -296,7 +295,7 @@ public class Stabilizer {
 		double _angle_rate =0;
 				
 		// EMA
-		filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((getRawGyro()-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
+		filter_angle_rate = filter_angle_rate * (0.8 * Stabilizer.dt/1000) + ((getRawGyro()-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
 		_angle_rate  = (getRawGyro()-angle_rate_offset) - filter_angle_rate;
 		
 		angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
@@ -324,7 +323,7 @@ public class Stabilizer {
     * @return positionwheels (m). Desplazamiento de las ruedas.
     */
    private double getPositionWheel(){
-	   
+	   /*
 	   double _position_leftmotor,_position_rightmotor, _position = 0, _positiondelta ;
 	   
 	   _position_leftmotor = leftMotor.getTachoCount();
@@ -348,6 +347,11 @@ public class Stabilizer {
 		positiondelta3 = positiondelta2;
 		positiondelta2 = positiondelta1;
 		positiondelta1 = _positiondelta;
+		*/
+		last_positionwheel = positionwheels;
+		positionwheels = (leftMotor.getTachoCount() + rightMotor.getTachoCount()) * ( (double) Math.toRadians(1) * RADIO_WHEEL / 2f);
+		
+		speedwheels = (positionwheels - last_positionwheel) / ((double)Stabilizer.dt/1000);
 		
 		return (double) positionwheels;
 	   
@@ -357,6 +361,7 @@ public class Stabilizer {
 	 * Actualiza el valor de las variables de estado del sistema.
 	 */
 	private void updateVariableState(){
+		
 		
 		lock_stabilizer.lock();
 		
