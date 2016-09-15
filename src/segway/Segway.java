@@ -91,7 +91,7 @@ public class Segway {
 		try {Thread.sleep(800);} catch (InterruptedException e) { e.printStackTrace();}
 		
 		// Se inicia el controal
-		gyroboy.setStateStabilizer(true);
+//		gyroboy.setStateStabilizer(true);
 		
 		float i = 0;
 		/*
