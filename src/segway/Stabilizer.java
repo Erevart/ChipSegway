@@ -40,7 +40,7 @@ public class Stabilizer {
 	 * If robot power is saturated (over +/- 100) for over this time limit then 
 	 * robot must have fallen.  In milliseconds.
 	 */
-	private static final double TIME_FALL_LIMIT = 400; // originally 1000
+	private static final double TIME_FALL_LIMIT = 1000; // originally 1000
 	
 	public static final int dt = 5; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
 
@@ -62,30 +62,22 @@ public class Stabilizer {
 	public static final double DIAMETER_WHEEL = 56; 					// Diametro de las ruedas (mm). 
 	public static final double RADIO_WHEEL = DIAMETER_WHEEL/2000;		// Radio de las ruedas (m)
 
-	private long positionwheels = 0;
-	private long speedwheels = 0;
-	private long positionwheels_diff = 0;
-	private long last_positionwheel = 0;
-	private long positiondelta1 = 0;
-	private long positiondelta2 = 0;
-	private long positiondelta3 = 0;
+	private double positionwheels = 0;
+	private double speedwheels = 0;
+	private double positionwheels_diff = 0;
+	private double last_positionwheel = 0;
+	private double positiondelta1 = 0;
+	private double positiondelta2 = 0;
+	private double positiondelta3 = 0;
 	
 	//=====================================================================
 	// Constantes controlador PID de estabilidad 
 	//=====================================================================	
 	private final double kp = 0.5;		// Ganancia proporcional
 	private final double ki = 11;		// Ganancia integral
-	private final double kd = 0.005;	// Ganancia derivativa
-	private final double ktau = 0;		// Ganancia Anti-Windup
+	private final double kd = 0.0005;	// Ganancia derivativa
 	
-	//private double ref_position = 0;
 	private double ref_speed = 0;
-	
-	/* Consignas */
-	private double integrated_error = 0;
-	private double past_error = 0;
-	private double last_dTerm = 0;
-	private double error = 0;
 	
 	//=====================================================================
 	// Ponderación LQR de las variables del sistema (Variables Lego)
@@ -127,14 +119,7 @@ public class Stabilizer {
 	 * Datalloger
 	 * Indicar que dato se guardarán
 	 */
-	PrintWriter stabilizerlog = null;
-	
-	/* Revisar todo de aqui en adelante */
-	private TextLCD lcd;
-	private EV3 chip;
-	
-	public int delay = 0;
-	
+	PrintWriter stabilizerlog = null;	
 	
 	 /**
 	 * Constructor por defecto. 
@@ -217,17 +202,18 @@ public class Stabilizer {
 		// Método de calibración descrito por Lego®.
 		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
 		gyro.setCurrentMode("Rate");
-		gyro.setCurrentMode(2);		
-		try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
-
-		while(!(angle >= 0 || angle < 0))
+		gyro.setCurrentMode(2);	
+	/*	try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
+		gyro.setCurrentMode("Rate");
+		try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
+	*/	while(!(angle >= 0 || angle < 0))
 			try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		
-		/*			
-		// Se inicializa el giroscopio. Se calcula su valor de offset.
+				
+	/*	// Se inicializa el giroscopio. Se calcula su valor de offset.
 		do{
 		
-		angle_rate_offset = 0f;	
+		angle_rate_offset = 0;	
 		
 		for (int n = 0; n < sample_calibration; n++ ){
 			angle_rate_offset +=getRawGyro();
@@ -253,7 +239,7 @@ public class Stabilizer {
 		
 		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
 		
-		*/
+	*/	
 	}
 	
 	/**
@@ -265,22 +251,24 @@ public class Stabilizer {
 		
 		float[] raw_gyro = new float[2];
 		double _filter_raw_gyro = 0;
+		double _angle_rate = 0;
 
 		
-	//	for (int i = 0; i < sample_filter_raw; i++){
+//		for (int i = 0; i < sample_filter_raw; i++){
 			gyro.getAngleAndRateMode().fetchSample(raw_gyro, 0);
-	//		_filter_raw_gyro += (double) raw_gyro[0];
-	//	}
+		//	gyro.getRateMode().fetchSample(raw_gyro, 0);
+//			_filter_raw_gyro -= (double) raw_gyro[0];
+//		}
 		
-	//	_filter_raw_gyro /= sample_filter_raw;
+		//_filter_raw_gyro /= sample_filter_raw;
 		
-	/*	// EMA
-		filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((getRawGyro()-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
-		_angle_rate  = (getRawGyro()-angle_rate_offset) - filter_angle_rate;
+		// EMA
+	//	filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((_filter_raw_gyro-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
+	//	_angle_rate  = (_filter_raw_gyro-angle_rate_offset) - filter_angle_rate;
 		
-		angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
-	*/
-		angle = -raw_gyro[0];
+	//	angle = angle +  _angle_rate * (double) (Stabilizer.dt)/1000;
+	
+		angle = raw_gyro[0];
 		/**
 		 * Datalog
 		 */
@@ -295,8 +283,8 @@ public class Stabilizer {
 			System.out.println("GYRO: "+ _filter_raw_gyro );
 		}
 		
-		//return _filter_raw_gyro;
-		return -raw_gyro[1];
+		//return _angle_rate;
+		return raw_gyro[1];
 	}
 	
 	/**
@@ -337,7 +325,7 @@ public class Stabilizer {
     */
    private double getPositionWheel(){
 	   
-	   long _position_leftmotor,_position_rightmotor, _position = 0, _positiondelta ;
+	   double _position_leftmotor,_position_rightmotor, _position = 0, _positiondelta ;
 	   
 	   _position_leftmotor = leftMotor.getTachoCount();
 	   _position_rightmotor = rightMotor.getTachoCount();
@@ -354,14 +342,14 @@ public class Stabilizer {
 		last_positionwheel = _position;
 		
 		// motorSpeed is based on the average of the last four delta's.
-		//speedwheels = RADIO_WHEEL * (_positiondelta+positiondelta1+positiondelta2+positiondelta3)/(4*tInterval);
+		speedwheels = (long) (RADIO_WHEEL * (_positiondelta+positiondelta1+positiondelta2+positiondelta3)/(4*Stabilizer.dt/1000));
 
 		// Shift the latest mrcDelta into the previous three saved delta values
 		positiondelta3 = positiondelta2;
 		positiondelta2 = positiondelta1;
 		positiondelta1 = _positiondelta;
 		
-		return positionwheels;
+		return (double) positionwheels;
 	   
    }
 	
@@ -377,7 +365,7 @@ public class Stabilizer {
         Psi = angle;
         
         Phi =  getPositionWheel();
-        PhiDot = speedwheels;
+        PhiDot = (double) speedwheels;
         
         lock_stabilizer.unlock();
         
@@ -548,7 +536,6 @@ public class Stabilizer {
 			double error = 0;
 			
 			double derivate_error =  0;
-			double u_control = 0;
 			
 			int count_scheduler = 0;	// Variable de planificación
 			long stabilizerTime = 0;
@@ -556,7 +543,6 @@ public class Stabilizer {
 			double turns_power_motors = 0;
 			int power_rightmotor = 0;
 			int power_leftmotor = 0;
-			long last_time = System.currentTimeMillis();
 			
 			
 			/*
@@ -629,11 +615,13 @@ public class Stabilizer {
 				if (power_rightmotor < 0)  rightMotor.backward(); 
 				else rightMotor.forward();
 
-				System.out.println(Psi);
+				//System.out.println((double)(System.currentTimeMillis() - stabilizerTime));
+				System.out.println("G: "+ PhiDot+"A: "+ Phi);
+				
 				
 				// Check if robot has fallen by detecting that motorPos is being limited
 				// for an extended amount of time.
-				if ((System.currentTimeMillis() - time_motorspeedOK) > TIME_FALL_LIMIT || Math.abs(Psi) > FALLING_DOWN) break;
+			//	if ((System.currentTimeMillis() - time_motorspeedOK) > TIME_FALL_LIMIT || Math.abs(Psi) > FALLING_DOWN) break;
 
 				
 	            // Delay used to stop Gyro being read to quickly. May need to be increase or
@@ -641,7 +629,7 @@ public class Stabilizer {
 				try {Thread.sleep(Stabilizer.dt);} catch (Exception e) {}
 			}
 			
-			System.out.println(Psi);
+			System.out.println(PsiDot);
 
 			leftMotor.flt();
 			rightMotor.flt();
