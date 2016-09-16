@@ -140,7 +140,7 @@ public class EV3Gyro /* extends UARTSensor */ {
 			System.out.println("Gyro offset: "+ angle_rate_offset);
 		
 		
-		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
+		} while(Math.abs( (float) ( getRawGyro() ) ) >= max_diff_calibration);	
 		
 		// Indica que se ha conseguido la calibración
 		// Play tone: frequency 440Hz, volume 10
@@ -149,18 +149,16 @@ public class EV3Gyro /* extends UARTSensor */ {
 		//	Sound.playTone(440, 200, 10);
 		
 	}
-	private float mean = 0f;
-	private float mean_ang = 0;
+
 	public float getRateAngle(){
 		
 		//angle_rate = filtergyro.filtrate(getRawGyro()-angle_rate_offset);
-		//angle_rate = getRawGyro()-angle_rate_offset;
+		angle_rate = getRawGyro()-angle_rate_offset;
 		
 		// EMA
-		mean = mean * (1f - 0.2f * Stabilizer.dt/1000f) + ((getRawGyro()-angle_rate_offset) * 0.2f * Stabilizer.dt/1000f);
-		angle_rate  = getRawGyro()-angle_rate_offset - mean;
+		//mean = mean * (1f - 0.2f * Stabilizer.dt/1000f) + ((getRawGyro()-angle_rate_offset) * 0.2f * Stabilizer.dt/1000f);
+		//angle_rate  = getRawGyro()-angle_rate_offset - mean;
 		
-	//	angle_rate = angle_rate * (0.8f) + (angle_rate * 0.2f);
 		
 		/**
 		 * Datalog
@@ -178,12 +176,7 @@ public class EV3Gyro /* extends UARTSensor */ {
 	public float getAngle(){
 		
 
-			angle = angle +  angle_rate * (float) (Stabilizer.dt)/1000f;  // (Stabilizer.dt/1000);
-			//angle = angle*0.97f + 0.03f*_angle;
-			
-			// what is this part? in lighter color
-			mean_ang = mean_ang * 0.999f + angle * 0.001f;
-			angle = angle - mean_ang;
+		angle +=  angle_rate * (float) (Stabilizer.dt/1000f);  // (Stabilizer.dt/1000);
 	
 		/**
 		 * Datalogg
@@ -197,18 +190,18 @@ public class EV3Gyro /* extends UARTSensor */ {
 	
 	public float getRawGyro(){
 		
-		float[] raw_gyro = new float[2];
+		float[] raw_gyro = new float[1];
 		
 
 	//	gyro.getRateMode().fetchSample(raw_gyro, 0);
 	//	gyro.fetchSample(raw_gyro, 0);
-		for (int i = 0; i < 5; i++){
+	//	for (int i = 0; i < 5; i++){
 		//raw_gyro[0] = - port.getShort();
 			gyro.getRateMode().fetchSample(raw_gyro, 0);
-			raw_gyro[1] = raw_gyro[0];
-		}
+	//		_raw_gyro += raw_gyro[0];
+	//	}
 		
-		raw_gyro[1] /=5;
+	//	_raw_gyro /=5;
 		
 	//	if (raw_gyro[0] > -0.8 && raw_gyro[0] < 0.8)
 	//		return 0;
@@ -222,7 +215,8 @@ public class EV3Gyro /* extends UARTSensor */ {
 		}
 		
 		//return (float) Math.toRadians(raw_gyro[0]);
-		return (float) -raw_gyro[1];
+		//return (float) _raw_gyro;
+		return (float) -raw_gyro[0];
 	}
 	
    /**

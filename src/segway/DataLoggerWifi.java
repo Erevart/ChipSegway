@@ -197,7 +197,7 @@ public class DataLoggerWifi extends Thread  {
 		
 		int _datacounter = 0;
 		int _type_data = 'A';
-		float _data = 0f;
+		float _data = 0;
 		
 		try {
 			serversocket = new ServerSocket(PORT);

@@ -103,8 +103,8 @@ class EV3Motor{
       int pwl = (int) (leftPower);// - Math.sin(sin_x) * sin_amp);
       int pwr = (int) (rightPower);// - Math.sin(sin_x) * sin_amp);
       
-   //   if (pwl>EV3Motor.MAX_POWER) pwl=EV3Motor.MAX_POWER;
-   //   if (pwl<EV3Motor.MIN_POWER) pwl=EV3Motor.MIN_POWER;
+      if (pwl>EV3Motor.MAX_POWER) pwl=EV3Motor.MAX_POWER;
+      if (pwl<EV3Motor.MIN_POWER) pwl=EV3Motor.MIN_POWER;
 
       if (pwl < 0) {
          leftMotor.backward();
@@ -116,8 +116,8 @@ class EV3Motor{
          leftMotor.stop();
       }
 
-   //   if (pwr>EV3Motor.MAX_POWER) pwr=EV3Motor.MAX_POWER;
-   //   if (pwr<EV3Motor.MIN_POWER) pwr=EV3Motor.MIN_POWER;
+      if (pwr>EV3Motor.MAX_POWER) pwr=EV3Motor.MAX_POWER;
+      if (pwr<EV3Motor.MIN_POWER) pwr=EV3Motor.MIN_POWER;
       
       if (pwr < 0) {
          rightMotor.backward();
@@ -137,7 +137,7 @@ class EV3Motor{
     */
    public float getAngle()
    {
-      return (float) (leftMotor.getTachoCount() + rightMotor.getTachoCount() ) / 2.0f;
+      return (float) (leftMotor.getTachoCount() + rightMotor.getTachoCount() ) / 2f;
    }
 
    

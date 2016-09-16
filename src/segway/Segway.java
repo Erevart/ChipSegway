@@ -30,7 +30,7 @@ public class Segway {
 	/**
 	 * Dataloggers
 	 */
-	public static boolean GYROLOG = true;
+	public static boolean GYROLOG = false;
 	public static boolean MOTORLOG = false;
 	public static boolean STABILIZERLOG = true;
 	public static boolean WIFILOG = false;
@@ -108,8 +108,9 @@ public class Segway {
 			/* Para debug */
 			
 		//	lcd.drawString("Tiempo "+ gyroboy.delay+ "   ", 1, 4);
-		//	lcd.drawString("Angulo: "+ gyroboy.getStabilizerAngle()+ "     ", 1, 3);
+			lcd.drawString("Angulo: "+ gyroboy.getStabilizerAngle()+ "     ", 1, 3);
 		/*	lcd.drawString("Gyro: "+ gyroboy.getStabilizerRateAngle()+ "     ", 1, 5);
+			lcd.drawString("Position: "+ gyroboy.getStabilizerPosition()+ "     ", 1, 6);
 			
 			lcd.drawString("Var i "+ i+ "   ", 1, 6);
 		*/
