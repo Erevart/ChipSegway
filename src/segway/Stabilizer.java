@@ -15,9 +15,12 @@ import lejos.hardware.Sound;
 import lejos.hardware.Sounds;
 import lejos.hardware.ev3.EV3;
 import lejos.hardware.lcd.TextLCD;
+import lejos.hardware.motor.UnregulatedMotor;
+import lejos.hardware.port.BasicMotorPort;
 import lejos.hardware.port.Port;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.EV3GyroSensor;
+import lejos.robotics.EncoderMotor;
 import lejos.robotics.SampleProvider;
 import lejos.utility.Delay;
 import segway.EV3Gyro;
@@ -28,30 +31,72 @@ import segway.EV3Gyro;
  */
 public class Stabilizer {
 	
-	/*
-	 * Constantes
+
+	/**
+	 *  Umbral de inclinación a partir de cual no se ejecuta el controlador. 
 	 */
+	private final int FALLING_DOWN = 30;
 	private static final int LOOP_50Hz = 2;
-	private static final int SLOWEST_LOOP = 2*LOOP_50Hz;
-	
-	private final float FALLING_DOWN = (float) (30f); // Umbral de inclinación a partir de cual no se ejecuta el controlador. 
-		
-	public static final float dt = 20f; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+	private static final int SLOWEST_LOOP = 4*LOOP_50Hz;
 
 	
-	// Sintonización variables del controlador 	
+	/** 
+	 * If robot power is saturated (over +/- 100) for over this time limit then 
+	 * robot must have fallen.  In milliseconds.
+	 */
+	private static final double TIME_FALL_LIMIT = 1000; // originally 1000
+	
+	public static final int dt = 20; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+
+	
+	//=====================================================================
+	// Variables del Giroscopio
+	//=====================================================================	
+	private final int sample_filter_raw = 5;
+	private final int sample_calibration = 500;
+	private final float max_diff_calibration = 0.5f;
+	
+	private float angle = 0f;
+	private float angle_rate_offset = 0f;
+	private float filter_angle_rate = 0f;
+	
+	//=====================================================================
+	// Parámetros y Variables de los Motores
+	//=====================================================================		
+	public static final float DIAMETER_WHEEL = 56; 					// Diametro de las ruedas (mm). 
+	public static final float RADIO_WHEEL = DIAMETER_WHEEL/2000;		// Radio de las ruedas (m)
+	
+	private float positionwheels = 0f;
+	private float speedwheels = 0f;
+	private float positionwheels_diff = 0f;
+	private float last_positionwheel = 0f;
+	private float positiondelta1 = 0f;
+	private float positiondelta2 = 0f;
+	private float positiondelta3 = 0f;
+	
+	//=====================================================================
+	// Constantes controlador PID de estabilidad 
+	//=====================================================================	
 	private final float kp = 0.5f;		// Ganancia proporcional
-	private final float ki = 11f;			// Ganancia integral
-	private final float kd = 0.005f;		// Ganancia derivativa
-	//private final float kp = 1.2 ; 
-	//private final float ki = 0.25;
-	//private final float kd = 0.1 ;
-
+	private final float ki = 11f;		// Ganancia integral
+	private final float kd = 0.005f;	// Ganancia derivativa
+	
+	private float ref_position = 0f;
+	private float ref_speed = 0f;
+	
 	/* Consignas */
 	private float integrated_error = 0f;
 	private float past_error = 0f;
 	private float last_dTerm = 0f;
-	private float refpos = 0f;
+	
+	//=====================================================================
+	// Ponderación LQR de las variables del sistema (Variables Lego)
+	//=====================================================================	
+	private final float Kpsidot = 1.3f; // Ganancia de velocidad angular. 
+	private final float Kpsi = 25f;
+	private final float Kphidot = 75f;
+	private final float Kphi  = 350f; 
+	
 	
 	/**
 	 * Indica el estado del robot. 
@@ -60,27 +105,10 @@ public class Stabilizer {
 	 */
 	private boolean stateStabilizer = false;	
 	
-	// Ponderación de las variables del sistema (Variables Lego)
-	private final float Kpsidot = 1.3f; // Ganancia de velocidad angular. 
-	private final float Kpsi = 25f;
-	private final float Kphidot = 75f;
-	private final float Kphi  = 350f; 
-	//-0.9735  -29.0577   -1.6239   -2.6134   -0.4269
 	
-	
-   // Teseing error contributions.
-   //private final float Kpsi = 44.257035; // Gyro angle weight
-   //private final float Kphi = 0.806876; // Motor angle weight
-   //private final float Kpsidot = 0.620882; // Gyro angle velocity weight
-   //private final float Kphidot = 0.039711;// Motor angle velocity weight
-   
-   // Original Balance numbers
-   // private final float Kpsi = 34.189581; // Gyro angle weight
-   // private final float Kphi = 0.835082; // Motor angle weight
-   // private final float Kpsidot = 0.646772; // Gyro angle velocity weight
-   // private final float Kphidot = 0.028141; // Motor angle velocity weight
-	
+	//=====================================================================
 	// Variables del sistema
+	//=====================================================================	
 	private float Psi = 0f;
 	private float PsiDot = 0f;
 	private float Phi = 0f;
@@ -89,11 +117,11 @@ public class Stabilizer {
 	private float new_steering = 0f;
 	private float steering_sync = 0f;
 	
-	// Definición de controladores
-	
+
 	// Definición de sensores y actuadores
-	public EV3Gyro gyro;
-	private EV3Motor motors;
+	private EV3GyroSensor gyro;
+	private EncoderMotor leftMotor;
+	private EncoderMotor rightMotor;
 	
 	// Mutex - Lock
 	private Lock lock_drivecontrol;
@@ -104,10 +132,10 @@ public class Stabilizer {
 	 * Indicar que dato se guardarán
 	 */
 	PrintWriter stabilizerlog = null;
-	
-	/* Revisar todo de aqui en adelante */
-	public int delay = 0;
-	
+		
+	//============
+	// Métodos
+	//===========
 	
 	 /**
 	 * Constructor por defecto. 
@@ -122,10 +150,33 @@ public class Stabilizer {
 	public Stabilizer(Port PortGyro, Port portleftMotor, Port portrightMotor) {
 		
 		/* Inicialización de atributos y declaración de objetos */
-		gyro = new EV3Gyro(PortGyro);
-		motors = new EV3Motor(portleftMotor, portrightMotor);
+	
+		// Inicialización Giroscopio
+		Button.LEDPattern(4);
+		if(Segway.SOUND)
+			Sound.playTone(440, 100, 10);
+		
+		gyro = new EV3GyroSensor(PortGyro);
+		
+		// Se calcula el valor de offset para la calibración del giroscopio.
+		calibrateGyro();
+		
+		// Inicialización Motores
+		Button.LEDPattern(5);
+		if(Segway.SOUND)
+			Sound.playTone(440, 100, 10);
+		
+		leftMotor = new UnregulatedMotor(portleftMotor,BasicMotorPort.PWM_FLOAT);
+		rightMotor = new UnregulatedMotor(portrightMotor,BasicMotorPort.PWM_FLOAT);
+		
 		
 		/* Inicialización de objetos */
+			
+		// Inicialización encoder de posición. Se toma la posición de inicio como 
+		// referencia.
+		stopMotor();
+		leftMotor.resetTachoCount();
+		rightMotor.resetTachoCount();
 		
 		
 		/* Atributos de permiso y acceso */
@@ -141,11 +192,163 @@ public class Stabilizer {
 			catch (FileNotFoundException e1) {e1.printStackTrace();}
 			catch (UnsupportedEncodingException e1) {e1.printStackTrace();}
 		}
-		
+			
+		// Se indica que puede iniciar el control de calibración.
 		setStateStabilizer(true);
-		
-	}	
+				
+		// Indica que se ha conseguido la calibración
+		// Play tone: frequency 440Hz, volume 10
+		// duration 0.1sec, play type 0
+		if(Segway.SOUND)
+			Sound.playTone(440, 200, 10);
+			
+	}
 	
+	/**
+	 * Determina el valor de offset del Giroscopio. Realiza la media aritmética del número de medidas 
+	 * indicadas por sample_calibration.
+	 * @param  	none
+	 * @return  none
+	 */
+	private void calibrateGyro(){
+				
+		// Método de calibración descrito por Lego®.
+		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
+		gyro.setCurrentMode("Rate");
+		gyro.setCurrentMode("Angle");
+		try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
+		gyro.setCurrentMode("Rate");
+		try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
+		while(!(getRawGyro() >= 0 || getRawGyro() < 0))
+			try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
+		
+				
+		// Se inicializa el giroscopio. Se calcula su valor de offset.
+		do{
+		
+		angle_rate_offset = 0;	
+		
+		for (int n = 0; n < sample_calibration; n++ ){
+			angle_rate_offset +=getRawGyro();
+			try { Thread.sleep(5);} catch (InterruptedException e) {e.printStackTrace();}
+			
+		}
+		
+		angle_rate_offset /= sample_calibration;
+		
+		if (Math.abs( (float) ( getRawGyro() ) ) >= max_diff_calibration){
+			// Indicar que hay que mantener quieto al robot
+			// Poner cara de gruñon.
+	
+			System.out.println("No te muevas");
+			Button.LEDPattern(5);
+		}
+		/**
+		 *  DEBUG
+		 */
+		if (Segway.GYRODB)
+			System.out.println("Gyro offset: "+ angle_rate_offset);
+		
+		
+		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
+		
+	
+	}
+	
+	/**
+	 * Devuelve la velocidad de giro medida por el giroscópico sin ningún tipo de tratamiento.
+	 * @param  	none
+	 * @return  none
+	 */
+	private float getRawGyro(){
+		
+		float[] raw_gyro = new float[1];
+		float _filter_raw_gyro = 0;
+		float _angle_rate = 0;
+
+		
+		//for (int i = 0; i < sample_filter_raw; i++){
+		//	gyro.getAngleAndRateMode().fetchSample(raw_gyro, 0);
+			gyro.getRateMode().fetchSample(raw_gyro, 0);
+		//	_filter_raw_gyro -= (float) raw_gyro[0];
+		//}
+		
+		//_filter_raw_gyro /= sample_filter_raw;
+		
+		// EMA
+	//	filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((_filter_raw_gyro-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
+		//_angle_rate  = (_filter_raw_gyro-angle_rate_offset);
+			_angle_rate  = (-raw_gyro[0]-angle_rate_offset);
+			
+		
+		angle = angle +  _angle_rate * (float) (dt)/1000f;
+	
+	//	angle = raw_gyro[0];
+		/**
+		 * Datalog
+		 */
+	//	if (Segway.GYROLOG) 
+	//		gyrolog.print(angle_rate_offset+","+_angle_rate+","+ (getRawGyro()-angle_rate_offset) );
+		
+		
+		/**
+		 *  DEBUG
+		 */
+		if (Segway.GYRODB){
+			System.out.println("GYRO: "+ _filter_raw_gyro );
+		}
+		
+		return _angle_rate;
+		//return raw_gyro[1];
+	}
+	
+	
+	/**
+  	* Stop both motors from rotating
+  	*/
+	private void stopMotor()
+	{
+      leftMotor.stop();
+      rightMotor.stop();
+	}
+   
+	/**
+	 * Calcula la velocidad de las ruedas y devuelve el desplazamiento.   
+	 * @return positionwheels (m). Desplazamiento de las ruedas.
+	 */
+	private float getPositionWheel(){
+	   /*
+	   double _position_leftmotor,_position_rightmotor, _position = 0, _positiondelta ;
+	   
+	   _position_leftmotor = leftMotor.getTachoCount();
+	   _position_rightmotor = rightMotor.getTachoCount();
+	      
+		// Maintain previous mrcSum so that delta can be calculated and get
+		// new mrcSum and Diff values
+		_position = _position_leftmotor + _position_rightmotor;
+		positionwheels_diff = _position_leftmotor - _position_rightmotor;
+		// mrcDetla is the change int sum of the motor encoders, update
+		// motorPos based on this detla
+		_positiondelta = _position - last_positionwheel;
+		positionwheels += _positiondelta * ( Math.toRadians(1) * RADIO_WHEEL / 2f);
+		last_positionwheel = _position;
+		
+		// motorSpeed is based on the average of the last four delta's.
+		speedwheels = (long) (RADIO_WHEEL * (_positiondelta+positiondelta1+positiondelta2+positiondelta3)/(4*Stabilizer.dt/1000));
+		// Shift the latest mrcDelta into the previous three saved delta values
+		positiondelta3 = positiondelta2;
+		positiondelta2 = positiondelta1;
+		positiondelta1 = _positiondelta;
+		*/
+		last_positionwheel = positionwheels;
+		positionwheels = (leftMotor.getTachoCount() + rightMotor.getTachoCount()) * ( (float) Math.toRadians(1) * RADIO_WHEEL / 2f);
+		
+		speedwheels = (positionwheels - last_positionwheel) / ((float)Stabilizer.dt/1000f);
+		
+		return (float) positionwheels;
+	   
+	}
+
 	/*
 	 * Actualiza el valor de las variables de estado del sistema.
 	 */
@@ -154,12 +357,12 @@ public class Stabilizer {
 		lock_stabilizer.lock();
 		
         // Actualización variables del sistema
-		PsiDot = gyro.getRateAngle();
-        Psi = gyro.getAngle();
+		PsiDot = getRawGyro();
+        Psi = angle;
         
         // ctrl.tiltAngle() is used to drive the robot forwards and backwards
-        Phi = motors.getPosition();// - ctrl.tiltAngle();
-        PhiDot = motors.getSpeed();
+        Phi = getPositionWheel();
+        PhiDot = speedwheels;
         
         lock_stabilizer.unlock();
         
@@ -240,12 +443,12 @@ public class Stabilizer {
 	 */
 	private float updateWeighingLQR(){
 		
-		// refpos += getSpeed();
-		//refpos = refpos + (dt/1000 * speed * 0.002f); // Lego
-		return 	(float) Kpsi * Psi +
+		ref_position += (dt/1000 * getSpeed() * 0.002f); // Lego
+		
+		return 	Kpsi * Psi +
 				Kpsidot * PsiDot +
-				 Kphi * (-Phi ) +
-			 	Kphidot * (-PhiDot);
+				Kphi *  ( ref_position - Phi ) +
+				Kphidot * (getSpeed() - PhiDot );
 		
 	}
 	
@@ -326,8 +529,8 @@ public class Stabilizer {
 		if (new_steering == 0){
 		
 			if (steering != 0)
-					steering_sync = motors.getRightAngle() - motors.getLeftAngle();
-			new_steering = (motors.getRightAngle() - motors.getLeftAngle() - steering_sync) * 0.05f;
+					steering_sync = positionwheels_diff;
+			new_steering = (positionwheels_diff - steering_sync) * 0.05f;
 			return new_steering;
 			
 		}
@@ -346,6 +549,17 @@ public class Stabilizer {
 		stabilizerlog.close();
 	}
 	
+	private float getSpeed(){
+		
+		float _speed = 0f;
+		
+		lock_drivecontrol.lock();
+		_speed = ref_speed;
+		lock_drivecontrol.unlock();
+		
+		return _speed;
+	}
+	
 	/**
 	 * 
 	 * Definición del hilo mediante interface de Runnable
@@ -360,14 +574,21 @@ public class Stabilizer {
 		@Override
 		public void run () {
 			
+			//==============================
+			// Variables controlador PID
+			//==============================
+			float error = 0f;
+			
+			
+			long time_motorspeedOK = 0;
+			
 			int count_scheduler = 0;	// Variable de planificación
 			long stabilizerTime = 0;
 			float power_motors = 0f;
 			float turns_power_motors = 0f;
 			int power_rightmotor = 0;
 			int power_leftmotor = 0;
-			long last_time = System.currentTimeMillis();
-			float error = 0;
+
 			
 			
 			/*
@@ -378,78 +599,94 @@ public class Stabilizer {
 				// Determinar condicion para salir del bucle cuando el robot se cae
 			
 				stabilizerTime = System.currentTimeMillis();
-				//lcd.drawString("Tiempo" + (stabilizerTime - last_time) + "   ", 1, 1);
-				last_time = stabilizerTime;
-				//ctrl.setUpright(true);
-	            // runDriveState();
+				
 	            
 				// Actualización variables del sistema.
 				updateVariableState();
 				
 				/*
+				 * Se pondera el valor de las variables de estado del sistema a partir 
+				 * de los pesos proprocionado por el algoritmo de optimización LQR.
+				 */
+				ref_position += (dt/1000 * getSpeed() * 0.002f); // Lego
+				
+				lock_stabilizer.lock();
+					error =	Kpsi * Psi +
+							Kpsidot * PsiDot +
+							Kphi *  ( ref_position - Phi ) +
+							Kphidot * (getSpeed() - PhiDot );
+				lock_stabilizer.unlock();
+								
+				/*
 				 * Loop 50 Hz (Tiempo comprobado entre XX - XX ms)
 				 */
 		//		if ((count_scheduler % LOOP_50Hz) == 0){
-					// Ponderación de las variables de estado.
-					//updateWeighingLQR();
 					
-					// Controlador
-					// refspeed += getSpeed() * (dt/1000) * 0.002
-					// motorcontroller.setPIDParam(PIDController.PID_SETPOINT, refspeed);
-	
-	
-					power_motors = updateController(updateWeighingLQR());
+					//================
+					//  Controlador 
+					//================
+			
+					power_motors = updateController(error);
+					
 					//turns_power_motors = getSteering();
 					power_rightmotor = (int) ((power_motors + turns_power_motors) * (0.021f / EV3Motor.RADIO_WHEEL));
 					power_leftmotor = (int) ((power_motors - turns_power_motors) * (0.021f / EV3Motor.RADIO_WHEEL));
 					
 					if (Segway.STABILIZERLOG) 
 						stabilizerlog.println(","+power_rightmotor+","+power_leftmotor);
-					            
-					if(Math.abs(Psi) < FALLING_DOWN){
-			    		
-						motors.setPower(power_leftmotor,power_rightmotor);
-					//	System.out.println(power_motors);
-			    						}
-					else {
-						motors.stop();
-						setStateStabilizer(false);
-						if  (Math.abs(Psi) > FALLING_DOWN && !getStateStabilizer()){
-							// Se enfada al caerse
-							Button.LEDPattern(8);
-						}
-						if (Button.UP.isDown()){
-							setStateStabilizer(true);
-							gyro.reset();
-							motors.resetMotors();
-							resetController();
-						}
+					
+					if (Math.abs(power_rightmotor) < 100)
+						time_motorspeedOK = stabilizerTime;
+
+					if (power_rightmotor > 100)   power_rightmotor = 100;
+					if (power_rightmotor < -100)  power_rightmotor = -100;
+
+					// Limit the power to motor power range -100 to 100
+					if (power_leftmotor > 100)  power_leftmotor = 100;
+					if (power_leftmotor < -100) power_leftmotor = -100;	
+						
+					/* Potencia motores */
+					if (power_leftmotor < 0){ 
+						leftMotor.setPower(-power_leftmotor);
+						leftMotor.backward();
 					}
-		//		}
-				//lcd.drawInt((int)power_leftmotor, 2, 7);
-				//lcd.drawInt((int)power_rightmotor, 7, 7);
+					else{
+						leftMotor.setPower(power_leftmotor);
+						leftMotor.forward();
+					}
+			       
+					if (power_rightmotor < 0){
+						rightMotor.setPower(-power_rightmotor);
+						rightMotor.backward(); 
+					}
+					else{
+						rightMotor.setPower(power_rightmotor);
+						rightMotor.forward();
+					}
+
+
+//				}
+
+					
+				if ((System.currentTimeMillis() - time_motorspeedOK) > TIME_FALL_LIMIT || Math.abs(Psi) > FALLING_DOWN) break;
+
 				
 				if (count_scheduler++ > SLOWEST_LOOP)
 					count_scheduler = 0;
 				
-				// Se añade 2 ms más para garantizar el tiempo del bucle.
-				delay = 2 + (int) ( System.currentTimeMillis()-stabilizerTime ) ;
-				
-				// Revisar delay2 eliminar
-				int delay2 =0;
-				if (delay >= dt)
-					delay2 = (int) dt;
-				else
-					delay2 = (int) (dt - delay);
 					            
 	            // Delay used to stop Gyro being read to quickly. May need to be increase or
 	            // decreased depending on leJOS version.
-				try {Thread.sleep(delay2);} catch (Exception e) {}
+				try {Thread.sleep(dt);} catch (Exception e) {}
 									
 			}
 			
-			if (Segway.GYROLOG) gyro.logClose();
-			if (Segway.MOTORLOG) motors.logClose();
+			leftMotor.flt();
+			rightMotor.flt();
+			setStateStabilizer(false);
+			
+		//	if (Segway.GYROLOG) gyro.logClose();
+		//	if (Segway.MOTORLOG) motors.logClose();
 			if (Segway.STABILIZERLOG) logClose();
 			
 			// Se cierra la comunicación con los sensores y actuadores.
