@@ -19,11 +19,16 @@ import lejos.hardware.motor.UnregulatedMotor;
 import lejos.hardware.port.BasicMotorPort;
 import lejos.hardware.port.Port;
 import lejos.hardware.port.SensorPort;
+import lejos.hardware.port.UARTPort;
+import lejos.hardware.sensor.BaseSensor;
 import lejos.hardware.sensor.EV3GyroSensor;
+
 import lejos.robotics.EncoderMotor;
 import lejos.robotics.SampleProvider;
 import lejos.utility.Delay;
 import segway.EV3Gyro;
+import segway.GyroEV3;
+
 
 /**
  * @author José Emilio Traver
@@ -46,15 +51,15 @@ public class Stabilizer {
 	 */
 	private static final double TIME_FALL_LIMIT = 1000; // originally 1000
 	
-	public static final int dt = 20; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
+	public static final int dt = 10; 	// Tiempo de muestreo (ms) // En lego dt = ( 22 - 2) / 1000
 
 	
 	//=====================================================================
 	// Variables del Giroscopio
 	//=====================================================================	
 	private final int sample_filter_raw = 5;
-	private final int sample_calibration = 500;
-	private final float max_diff_calibration = 0.5f;
+	private final int SAMPLE_CALIBRATION = 500;
+	private final float MAX_DIFF_CALIBRATION = 1f;
 	
 	private float angle = 0f;
 	private float angle_rate_offset = 0f;
@@ -119,7 +124,8 @@ public class Stabilizer {
 	
 
 	// Definición de sensores y actuadores
-	private EV3GyroSensor gyro;
+	//private EV3GyroSensor gyro;
+	private GyroEV3 gyro;
 	private EncoderMotor leftMotor;
 	private EncoderMotor rightMotor;
 	
@@ -156,7 +162,9 @@ public class Stabilizer {
 		if(Segway.SOUND)
 			Sound.playTone(440, 100, 10);
 		
-		gyro = new EV3GyroSensor(PortGyro);
+		//gyro = new EV3GyroSensor(PortGyro);
+		gyro = new GyroEV3(PortGyro);
+
 		
 		// Se calcula el valor de offset para la calibración del giroscopio.
 		calibrateGyro();
@@ -203,7 +211,7 @@ public class Stabilizer {
 			Sound.playTone(440, 200, 10);
 			
 	}
-	
+		
 	/**
 	 * Determina el valor de offset del Giroscopio. Realiza la media aritmética del número de medidas 
 	 * indicadas por sample_calibration.
@@ -211,14 +219,16 @@ public class Stabilizer {
 	 * @return  none
 	 */
 	private void calibrateGyro(){
+		
+		float _angle_rate_offset = 0;
 				
 		// Método de calibración descrito por Lego®.
 		// ver http://www.us.lego.com/en-us/mindstorms/community/robot?projectid=96894a3a-45db-48f9-9544-abf66f481b32
+		gyro.reset();
 		gyro.setCurrentMode("Rate");
-		gyro.setCurrentMode("Angle");
 		try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
-		gyro.setCurrentMode("Rate");
-		try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
+		//gyro.setCurrentMode("Rate");
+		//try { Thread.sleep(3300);} catch (InterruptedException e) {e.printStackTrace();}
 		while(!(getRawGyro() >= 0 || getRawGyro() < 0))
 			try { Thread.sleep(200);} catch (InterruptedException e) {e.printStackTrace();}
 		
@@ -226,17 +236,18 @@ public class Stabilizer {
 		// Se inicializa el giroscopio. Se calcula su valor de offset.
 		do{
 		
-		angle_rate_offset = 0;	
+		_angle_rate_offset = 0;	
 		
-		for (int n = 0; n < sample_calibration; n++ ){
-			angle_rate_offset +=getRawGyro();
+		for (int n = 0; n < SAMPLE_CALIBRATION; n++ ){
+			_angle_rate_offset +=getRawGyro();
 			try { Thread.sleep(5);} catch (InterruptedException e) {e.printStackTrace();}
+			System.out.println("GYRO: "+ _angle_rate_offset );
 			
 		}
 		
-		angle_rate_offset /= sample_calibration;
+		_angle_rate_offset /= SAMPLE_CALIBRATION;
 		
-		if (Math.abs( (float) ( getRawGyro() ) ) >= max_diff_calibration){
+		if (Math.abs( (float) ( getRawGyro() - _angle_rate_offset) ) >= MAX_DIFF_CALIBRATION){
 			// Indicar que hay que mantener quieto al robot
 			// Poner cara de gruñon.
 	
@@ -250,8 +261,9 @@ public class Stabilizer {
 			System.out.println("Gyro offset: "+ angle_rate_offset);
 		
 		
-		} while(Math.abs( (float) ( getRawGyro() - angle_rate_offset) ) >= max_diff_calibration);	
+		} while(Math.abs( (float) (getRawGyro() - _angle_rate_offset) ) >= MAX_DIFF_CALIBRATION);	
 		
+		angle_rate_offset = _angle_rate_offset;	
 	
 	}
 	
@@ -276,9 +288,9 @@ public class Stabilizer {
 		//_filter_raw_gyro /= sample_filter_raw;
 		
 		// EMA
-	//	filter_angle_rate = filter_angle_rate * (1 - 0.2 * Stabilizer.dt/1000) + ((_filter_raw_gyro-angle_rate_offset) * 0.2 * Stabilizer.dt/1000);
+		//filter_angle_rate = filter_angle_rate * (1f - 0.2f * Stabilizer.dt/1000f) + ((_filter_raw_gyro-angle_rate_offset) * 0.2f * Stabilizer.dt/1000f);
 		//_angle_rate  = (_filter_raw_gyro-angle_rate_offset);
-			_angle_rate  = (-raw_gyro[0]-angle_rate_offset);
+		_angle_rate  = (-raw_gyro[0]-angle_rate_offset) - filter_angle_rate;
 			
 		
 		angle = angle +  _angle_rate * (float) (dt)/1000f;
@@ -613,8 +625,8 @@ public class Stabilizer {
 				lock_stabilizer.lock();
 					error =	Kpsi * Psi +
 							Kpsidot * PsiDot +
-							Kphi *  ( ref_position - Phi ) +
-							Kphidot * (getSpeed() - PhiDot );
+							Kphi *  ( ref_position + Phi ) +
+							Kphidot * (getSpeed() + PhiDot );
 				lock_stabilizer.unlock();
 								
 				/*
