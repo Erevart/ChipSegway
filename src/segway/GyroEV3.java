@@ -149,7 +149,7 @@ public class GyroEV3 extends UARTSensor {
     // Reset mode (4) is not used here as it behaves eratically. Instead the reset is done implicitly by going to mode 1.
     switchMode(4, SWITCHDELAY);
     // And back to 3 to prevent another reset when fetching the next sample
-    switchMode(0, SWITCHDELAY);
+    switchMode(1, SWITCHDELAY);
   }
 
   private class AngleMode implements SampleProvider, SensorMode {
@@ -176,7 +176,7 @@ public class GyroEV3 extends UARTSensor {
   }
 
   private class RateMode implements SampleProvider, SensorMode {
-    private static final int   MODE = 2;
+    private static final int   MODE = 1;
     private static final float toSI = -1;
 
     @Override

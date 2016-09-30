@@ -3,5 +3,6 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.lejos.ev3.ldt.LEJOS_EV3_LIBRARY_CONTAINER"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry kind="lib" path="/Volumes/Mac_Datos/Documents/Proyectos/EV3/Lejos/leJOS_NXJ_0.9.1beta-3/jna-3.0.9.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

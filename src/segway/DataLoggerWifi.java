@@ -104,8 +104,7 @@ public class DataLoggerWifi extends Thread  {
 	
 	private char receivedChar(){
 		
-		//sendChar('@');
-		
+
 		if (!getClientStatus())
 			return 0;
 		
@@ -132,9 +131,13 @@ public class DataLoggerWifi extends Thread  {
 	}
 	
 	public void close(){
+		setDataLog('#',0);
 		setClientStatus(false);
 		setServerStatus(false);
-//		try {socket.close();} catch (IOException e) {}
+		if(serversocket.isClosed())
+			try {serversocket.close();} catch (IOException e) {}	
+		 if (!socket.isClosed())
+			 try {socket.close();} catch (IOException e) {}	
 	}
 	
 	
@@ -241,7 +244,8 @@ public class DataLoggerWifi extends Thread  {
 					 socket.close();
 				 
 			 }while(getServerStatus());			 
-			 serversocket.close();
+			 if(serversocket.isClosed())
+				 try {serversocket.close();} catch (IOException e) {}	
 			
 		 	} catch (IOException e) { if (Segway.WIFILOGDB) System.out.print("Error, no se creo el servidor. \n");}
 	}
